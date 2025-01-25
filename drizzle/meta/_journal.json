@@ -1,0 +1,13 @@
+{
+  "version": "0",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1737711955323,
+      "tag": "0000_wealthy_victor_mancha",
+      "breakpoints": true
+    }
+  ]
+}

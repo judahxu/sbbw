@@ -1,0 +1,134 @@
+"use client"
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import HomeLink from '../../components/HomeLink';
+import 'flowbite';
+import { api } from "~/trpc/react";
+import { useRouter } from 'next/navigation';
+import { useToast } from '~/hooks/use-toast';
+
+export default function Register() {
+  const [isClient, setIsClient] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast()
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [againPassword, setAgainPassword] = useState("");
+
+
+  useEffect(() => {
+    // Set the isClient state to true once the component mounts
+    setIsClient(true);
+  }, []);
+
+  const register = api.auth.register.useMutation({
+    onSuccess: () => {
+      toast({
+        title:"注册成功",
+      })
+      router.push("/login");
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "注册失败",
+        description: error.message, 
+      })
+    },
+  });
+
+  // 处理注册表单提交
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  if (password !== againPassword) {
+    toast({
+      variant: "destructive",
+      title: "注册失败",
+      description: "两次输入的密码不一致",
+    })
+    return;
+  } else if (password.length < 8) {
+    toast({
+      variant: "destructive",
+      title: "注册失败",
+      description: "密码长度至少为8个字符",
+    })
+    return;
+  } else if (!email) {
+    toast({
+      variant: "destructive",
+      title: "注册失败",
+      description: "邮箱不能为空",
+    })
+    return;
+  } else if (password.length > 20) {
+    toast({
+      variant: "destructive",
+      title: "注册失败",
+      description: "密码长度最长为20个字符",
+    })
+    return;    
+  } else if (!/^[A-Za-z0-9]+@([a-zA-Z0-9]+[\.])+[a-zA-Z]{2,}$/.test(email)) {
+    toast({
+      variant: "destructive",
+      title: "注册失败",
+      description: "邮箱格式不正确",
+    })
+    return;    
+  }
+
+  await register.mutateAsync({
+    email,
+    password,
+  });
+};
+
+  // Render the form only if isClient is true
+  return (
+    <main className="flex flex-col items-center justify-start w-full">
+      {isClient && (
+        <div className="w-full max-w-md">
+          <form className="bg-dark-gray shadow-lg rounded px-8 pt-6 pb-8 mb-4 mt-16">
+            <h2 className="text-center text-2xl font-extrabold text-gray-900 mb-4">注册账号</h2>
+
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+                邮箱
+              </label>
+              <input className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="email" type="email" placeholder="Email" onChange={(e) => setEmail(e.target.value)}/>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
+                密码
+              </label>
+              <input className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="password" type="password" placeholder="Password" onChange={(e) => setPassword(e.target.value)} />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="confirm-password">
+                确认密码
+              </label>
+              <input className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="confirm-password" type="password" placeholder="Confirm Password" onChange={(e) => setAgainPassword(e.target.value)} />
+            </div>
+
+            <div className="mb-4" onClick={handleSubmit}>
+              <button className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 w-full rounded focus:outline-none focus:shadow-outline" type="submit">
+              注册
+              </button>
+            </div>
+
+            <div className="text-center">
+              <p className="text-sm">
+                已经有账号?
+                <a href="/login" className="font-medium text-gray-600 hover:text-gray-500 hover:underline">登录</a>
+              </p>
+            </div>
+          </form>
+        </div>
+      )}
+    </main>
+  );
+}

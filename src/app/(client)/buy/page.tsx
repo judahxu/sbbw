@@ -100,9 +100,9 @@ export default function OrderConfirmPage() {
         {/* Terms Notice */}
         <p className="text-center text-sm text-gray-500 mt-6">
           点击确认支付即表示您同意我们的
-          <a href="/terms" className="text-blue-500 hover:underline mx-1">服务条款</a>
+          <a href="/docs/terms" className="text-blue-500 hover:underline mx-1">服务条款</a>
           和
-          <a href="/privacy" className="text-blue-500 hover:underline mx-1">隐私政策</a>
+          <a href="/docs/privacy" className="text-blue-500 hover:underline mx-1">隐私政策</a>
         </p>
       </div>
 

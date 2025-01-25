@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, HelpCircle, Info  } from 'lucide-react';
 import { PricingTiers, RechargeCalculator } from './components/PricingTiers';
 import { Badge } from '@/components/ui/badge';
+import { useRouter } from "next/navigation";
+import Link from 'next/link';
 
 const accelerationTiers = [
   {
@@ -150,6 +152,8 @@ function ServiceFlow() {
 
 // 新手引导组件
 function BeginnerGuide() {
+  const router = useRouter();
+  
   return (
     <div className="bg-blue-50 p-6 rounded-lg mb-12">
       <div className="flex items-center gap-2 mb-4">
@@ -178,7 +182,7 @@ function BeginnerGuide() {
             <p className="text-gray-600">每个服务都配有详细教程，遇到问题可以随时联系客服。</p>
           </div>
         </div>
-        <Button variant="outline" className="mt-4">
+        <Button variant="outline" className="mt-4" onClick={() => router.push('/docs/guide')}>
           查看详细新手指南
         </Button>
       </div>
@@ -188,6 +192,7 @@ function BeginnerGuide() {
 
 export default function ProductPage() {
   const [selectedTier, setSelectedTier] = React.useState(accelerationTiers[1]); // 默认选择季付
+  const router = useRouter();
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -287,19 +292,19 @@ export default function ProductPage() {
         <section className="text-center bg-gray-50 p-8 rounded-lg">
           <h2 className="text-2xl font-bold mb-8">需要帮助？</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer" onClick={() => router.push('/docs/guide')}>
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-2">新手指南</h3>
                 <p className="text-gray-600">从零开始的详细教程</p>
               </CardContent>
             </Card>
-            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer" onClick={() => router.push('/docs/faq')}>
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-2">常见问题</h3>
                 <p className="text-gray-600">解答使用过程中的困惑</p>
               </CardContent>
             </Card>
-            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer" onClick={() => router.push('/docs/contact')}>
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-2">联系客服</h3>
                 <p className="text-gray-600">获取专业的技术支持</p>

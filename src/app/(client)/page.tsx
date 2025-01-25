@@ -22,22 +22,22 @@ export default function Home() {
         <div className="grid lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
           <ServiceLink
             to="/product"
-            title="ChatGPT账号"
-            description="提供 ChatGPT 官方账号，独立账号，永久使用。"
+            title="美区账号"
+            description="提供 美区账号，独立账号，永久使用。"
           />
           <ServiceLink
             to="/product"
-            title="GPT加速器"
-            description="提供可靠、不间断的 GPT 加速服务，让您高速、稳定地访问 ChatGPT。"
+            title="科学上网"
+            description="提供可靠、不间断的 加速服务，让您高速、稳定地访问 国外网站。"
           />
           <ServiceLink
             to="/product"
-            title="GPT4.0充值"
-            description="提供 ChatGPT4.0充值服务，支持支付宝、微信、银行卡等多种支付方式。"
+            title="账户充值"
+            description="提供 账户充值服务，支持支付宝、微信、银行卡等多种支付方式。"
           />
           <ServiceLink
             to="/help"
-            title="技术交流"
+            title="帮助文档"
             description="提供技术交流和帮助文档，有问题可以随时联系我们。"
           />
         </div>

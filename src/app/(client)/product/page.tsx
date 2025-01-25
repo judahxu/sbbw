@@ -1,421 +1,313 @@
-'use client'
-import React, { useState } from 'react';
-import HomeLink from '../../components/HomeLink';
-import LoginLink from '../../components/LoginLink';
-import ProductConfigurator from './ProductConfigurator';
-import RecommendedPlans from './RecommendedPlan';
-import { api } from "~/trpc/react";
-import { Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+// src/app/(client)/product/page.tsx
+'use client';
 
-export default function BuyPage() {
-  const [selectedProduct, setSelectedProduct] = useState('chatgpt');
+import React from 'react';
+// import { ServiceCard } from './components/ServiceCard';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ArrowRight, HelpCircle, Info  } from 'lucide-react';
+import { PricingTiers, RechargeCalculator } from './components/PricingTiers';
+import { Badge } from '@/components/ui/badge';
 
-  const [pageMode, setPageMode] = useState<'plans' | 'custom'>('plans');
-  const router = useRouter();
+const accelerationTiers = [
+  {
+    period: '月付',
+    price: 39,
+    unit: '月',
+    originalPrice: 49
+  },
+  {
+    period: '季付',
+    price: 99,
+    unit: '季度',
+    originalPrice: 147,
+    recommended: true
+  },
+  {
+    period: '年付',
+    price: 328,
+    unit: '年',
+    originalPrice: 588
+  }
+];
 
-  const { data: bundlesData, isLoading } = api.bundle.list.useQuery({
-    status: 'active',
-    page: 1,
-    pageSize: 10
-  });
+const exchangeRate = 7.2; // 示例汇率，实际应该从API获取
+const serviceFee = 5; // 5%服务费
 
-  const recommendedPlans = bundlesData?.items.map(bundle => ({
-    id: bundle.id,
-    title: bundle.name,
-    description: bundle.description,
-    price: bundle.salePrice,
-    originalPrice: bundle.originalPrice,
-    tag: bundle.tag || undefined,
-    features: bundle.features
-  })) || [];
-
-
-  // 套餐选择处理
-  const handleSelectBundle = (bundleId: number) => {
-    console.log(111,bundleId)
-    router.push(`/buy?type=bundle&id=${bundleId}`);
-  };
-
-  // 自选配置提交处理
-  const handleCustomSubmit = (config: any) => {
-    // 序列化配置数据
-    const configStr = encodeURIComponent(JSON.stringify(config));
-    router.push(`/buy?type=custom&config=${configStr}`);
-  };
-
-
-  // const recommendedPlans = [
-  //   {
-  //     title: "畅享套餐",
-  //     description: "永久账号 + 365天加速器",
-  //     price: 399,
-  //     originalPrice: 499,
-  //     tag: "最热",
-  //     features: [
-  //       { label: "永久账号所有权", included: true },
-  //       { label: "365天加速器服务", included: true },
-  //       { label: "支持更换密码", included: true },
-  //       { label: "优先技术支持", included: true },
-  //       { label: "GPT4使用额度", included: false }
-  //     ]
-  //   },
-  //   {
-  //     title: "Plus尊享套餐",
-  //     description: "Plus账号 + 180天加速器",
-  //     price: 799,
-  //     originalPrice: 999,
-  //     features: [
-  //       { label: "永久账号所有权", included: true },
-  //       { label: "180天加速器服务", included: true },
-  //       { label: "3个月Plus订阅", included: true },
-  //       { label: "GPT4使用额度", included: true },
-  //       { label: "优先技术支持", included: true }
-  //     ]
-  //   },
-  //   {
-  //     title: "体验套餐",
-  //     description: "临时账号 + 加速器",
-  //     price: 99,
-  //     originalPrice: 159,
-  //     features: [
-  //       { label: "30天使用权限", included: true },
-  //       { label: "30天加速器", included: true },
-  //       { label: "基础技术支持", included: true },
-  //       { label: "到期自动失效", included: true },
-  //       { label: "GPT4使用额度", included: false }
-  //     ]
-  //   }
-  // ];
-
-  const products = {
-    chatgpt: {
-      type: "ChatGPT账号",
-      basePrice: 99,
-      options: [
-        {
-          id: "ownership",
-          name: "账号类型",
-          required: true,
-          options: [
-            {
-              value: "permanent",
-              label: "永久账号",
-              price: 0,
-              description: "账号归您所有，可自行管理和更改密码"
-            },
-            {
-              value: "temporary",
-              label: "临时账号",
-              price: -79,
-              description: "使用期限内可用，到期自动失效"
-            }
-          ]
-        },
-        {
-          id: "duration",
-          name: "使用时长",
-          required: true,
-          dependsOn: {
-            field: "ownership",
-            value: "temporary"
-          },
-          options: [
-            {
-              value: "7d",
-              label: "7天体验",
-              price: 0,
-              description: "含7天加速器"
-            },
-            {
-              value: "15d",
-              label: "15天使用",
-              price: 20,
-              description: "含15天加速器"
-            },
-            {
-              value: "30d",
-              label: "30天使用",
-              price: 45,
-              description: "含30天加速器"
-            }
-          ]
-        },
-        {
-          id: "plus_subscription",
-          name: "Plus订阅",
-          options: [
-            {
-              value: "no",
-              label: "不需要Plus",
-              price: 0,
-              description: "仅使用GPT-3.5功能"
-            },
-            {
-              value: "yes",
-              label: "订阅Plus",
-              price: 0,
-              description: "使用GPT-4和其他高级功能，最少订阅1个月"
-            }
-          ]
-        },
-        {
-          id: "plus_duration",
-          name: "Plus订阅时长（最少1个月）",
-          dependsOn: {
-            field: "plus_subscription",
-            value: "yes"
-          },
-          options: [
-            {
-              value: "1m",
-              label: "1个月",
-              price: 138,
-              description: "月付订阅，按月续费"
-            },
-            {
-              value: "3m",
-              label: "3个月",
-              price: 399,
-              description: "季付优惠，约合133元/月"
-            },
-            {
-              value: "6m",
-              label: "6个月",
-              price: 759,
-              description: "半年特惠，约合126.5元/月"
-            }
-          ]
-        },
-        {
-          id: "accelerator",
-          name: "加速器服务",
-          dependsOn: {
-            field: "ownership",
-            value: "permanent"
-          },
-          options: [
-            {
-              value: "none",
-              label: "不需要加速器",
-              price: 0,
-              description: "已有其他稳定访问方式"
-            },
-            {
-              value: "30d",
-              label: "30天加速",
-              price: 30,
-              description: "适合短期使用"
-            },
-            {
-              value: "90d",
-              label: "90天加速",
-              price: 80,
-              description: "季度套餐更优惠"
-            },
-            {
-              value: "365d",
-              label: "365天加速",
-              price: 300,
-              description: "年付最划算"
-            }
-          ]
-        }
-      ]
+// 在 ProductPage 组件中更新服务卡片内容
+const services = [
+  {
+    title: '加速服务',
+    description: '提供可靠、不间断的加速服务，让您高速、稳定地访问国外网站',
+    features: [
+      '全球节点分布，智能优化线路',
+      '支持各类设备，简单易用',
+      '24/7 技术支持服务'
+    ],
+    hasPricingTiers: true,
+    documentation: '/docs/vpn-guide',
+    relatedServices: [
+      {
+        title: '美区账号',
+        description: '配合使用，轻松访问 App Store 美区'
+      }
+    ]
+  },
+  {
+    title: '美区账号',
+    description: '提供独立 App Store 美区账号，永久使用，安全可靠',
+    features: [
+      '正规渠道注册，安全可靠',
+      '独立账号，永久使用',
+      '完整的使用教程支持'
+    ],
+    price: {
+      amount: 99,
+      unit: '个'
     },
-    accelerator: {
-      type: "单独购买加速器",
-      basePrice: 0,
-      options: [
-        {
-          id: "type",
-          name: "版本选择",
-          required: true,
-          options: [
-            {
-              value: "personal",
-              label: "个人版",
-              price: 19.9,
-              description: "2台设备同时在线"
-            },
-            {
-              value: "team",
-              label: "团队版",
-              price: 49.9,
-              description: "5台设备同时在线"
-            }
-          ]
-        },
-        {
-          id: "duration",
-          name: "使用时长",
-          required: true,
-          options: [
-            {
-              value: "1m",
-              label: "月付",
-              price: 0,
-              description: "灵活使用"
-            },
-            {
-              value: "3m",
-              label: "季付",
-              price: -9.8,
-              description: "约合16.7元/月"
-            },
-            {
-              value: "12m",
-              label: "年付",
-              price: -70.8,
-              description: "约合8.2元/月"
-            }
-          ]
-        }
-      ]
-    },
-    recharge: {
-      type: "充值服务",
-      basePrice: 0,
-      options: [
-        {
-          id: "type",
-          name: "充值类型",
-          required: true,
-          options: [
-            {
-              value: "plus",
-              label: "Plus月度订阅",
-              price: 138,
-              description: "$20/月（实时汇率+3%）"
-            },
-            {
-              value: "api",
-              label: "API充值",
-              price: 0,
-              description: "选择充值金额"
-            }
-          ]
-        },
-        {
-          id: "api_amount",
-          name: "API充值金额",
-          dependsOn: {
-            field: "type",
-            value: "api"
-          },
-          options: [
-            {
-              value: "5",
-              label: "$5起充",
-              price: 35,
-              description: "实时汇率+5%"
-            },
-            {
-              value: "20",
-              label: "$20起充",
-              price: 138,
-              description: "实时汇率+4%"
-            },
-            {
-              value: "50",
-              label: "$50起充",
-              price: 345,
-              description: "实时汇率+3%"
-            },
-            {
-              value: "100",
-              label: "$100起充",
-              price: 690,
-              description: "实时汇率+2%"
-            }
-          ]
-        }
-      ]
-    }
-  };
+    documentation: '/docs/appstore-guide',
+    relatedServices: [
+      {
+        title: '充值服务',
+        description: '配合使用，轻松完成应用内购买'
+      }
+    ]
+  },
+  {
+    title: '充值服务',
+    description: '提供 App Store 礼品卡充值服务，支持各种支付方式',
+    features: [
+      '支持支付宝、微信等支付方式',
+      '最低充值金额：20美金',
+      '专业客服指导完成充值'
+    ],
+    hasCalculator: true,
+    documentation: '/docs/recharge-guide',
+    relatedServices: [
+      {
+        title: '美区账号',
+        description: '需要美区账号才能使用充值服务'
+      }
+    ]
+  }
+];
+// 服务流程图组件
+function ServiceFlow() {
+  return (
+    <div className="relative py-8 px-4">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-8 relative">
+        {/* 连接线 - 仅在md以上显示 */}
+        <div className="hidden md:block absolute top-1/2 left-0 right-0 h-0.5 bg-blue-200 -z-10" />
+        
+        {/* 场景一：访问国外应用 */}
+        <div className="bg-white p-4 rounded-lg shadow-md w-full md:w-1/3">
+          <h3 className="font-bold text-lg mb-2">想用国外应用？</h3>
+          <div className="space-y-2">
+            <p className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center">1</span>
+              <span>使用加速服务访问应用商店</span>
+            </p>
+            <p className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center">2</span>
+              <span>通过美区账号下载应用</span>
+            </p>
+          </div>
+        </div>
 
+        {/* 场景二：需要充值？ */}
+        <div className="bg-white p-4 rounded-lg shadow-md w-full md:w-1/3">
+          <h3 className="font-bold text-lg mb-2">需要充值？</h3>
+          <div className="space-y-2">
+            <p className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center">1</span>
+              <span>准备美区账号</span>
+            </p>
+            <p className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center">2</span>
+              <span>使用充值服务完成支付</span>
+            </p>
+          </div>
+        </div>
 
-  //  主要Tab样式处理
-   const getMainTabClass = (mode: 'plans' | 'custom') => `
-   px-8 py-3 text-lg font-semibold rounded-lg transition-colors 
-   ${pageMode === mode
-     ? 'bg-black text-white shadow-md'
-     : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-   }
- `;
-  const getTabClass = (tab: string) => 
-    `px-6 py-2 rounded-lg transition-colors ${
-      selectedProduct === tab
-        ? 'bg-black text-white'
-        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-    }`;
+        {/* 场景三：订阅服务？ */}
+        <div className="bg-white p-4 rounded-lg shadow-md w-full md:w-1/3">
+          <h3 className="font-bold text-lg mb-2">想订阅服务？</h3>
+          <div className="space-y-2">
+            <p className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center">1</span>
+              <span>使用加速服务访问</span>
+            </p>
+            <p className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center">2</span>
+              <span>通过充值服务订阅</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 新手引导组件
+function BeginnerGuide() {
+  return (
+    <div className="bg-blue-50 p-6 rounded-lg mb-12">
+      <div className="flex items-center gap-2 mb-4">
+        <HelpCircle className="text-blue-500" />
+        <h2 className="text-xl font-bold">新来的？从这里开始</h2>
+      </div>
+      <div className="space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">1</div>
+          <div>
+            <h3 className="font-semibold">确定你的需求</h3>
+            <p className="text-gray-600">想用国外应用？需要充值？还是想订阅服务？根据你的需求选择合适的服务组合。</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-4">
+          <div className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">2</div>
+          <div>
+            <h3 className="font-semibold">查看推荐方案</h3>
+            <p className="text-gray-600">我们为不同需求准备了推荐方案，点击下方场景查看详细建议。</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-4">
+          <div className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">3</div>
+          <div>
+            <h3 className="font-semibold">获取帮助</h3>
+            <p className="text-gray-600">每个服务都配有详细教程，遇到问题可以随时联系客服。</p>
+          </div>
+        </div>
+        <Button variant="outline" className="mt-4">
+          查看详细新手指南
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export default function ProductPage() {
+  const [selectedTier, setSelectedTier] = React.useState(accelerationTiers[1]); // 默认选择季付
 
   return (
-    <main className="flex flex-col items-center justify-start w-full">
-      <div className="mt-16 w-full max-w-7xl">
-      <div className="flex justify-center space-x-6 mb-12">
-          <button
-            onClick={() => setPageMode('plans')}
-            className={getMainTabClass('plans')}
-          >
-            推荐套餐
-          </button>
-          <button
-            onClick={() => setPageMode('custom')}
-            className={getMainTabClass('custom')}
-          >
-            自选配置
-          </button>
-        </div>
-        {/* 推荐套餐部分 */}
-        <section className={pageMode === 'plans' ? 'block' : 'hidden'}>
-          {/* <h1 className="text-3xl font-bold text-center mb-8">推荐套餐</h1> */}
-          {isLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
-          ) : (
-            <RecommendedPlans plans={recommendedPlans} onSelect={handleSelectBundle} />
-          )}
+    <div className="flex flex-col min-h-screen">
+      <main className="flex-grow container mx-auto px-4 py-8">
+        {/* 新手引导区域 */}
+        <BeginnerGuide />
+
+        {/* 常见使用场景流程 */}
+        <section className="mb-16">
+          <h2 className="text-2xl font-bold mb-6 text-center">选择你的场景</h2>
+          <ServiceFlow />
         </section>
 
-        {/* 产品选择部分 */}
-        <section className={pageMode == 'custom' ? 'block' : 'hidden'}>
-          {/* <h1 className="text-3xl font-bold text-center mb-8">自选配置</h1> */}
-          <div className="flex justify-center space-x-4 mb-8">
-            {/* <button
-              onClick={() => setSelectedProduct('recommended')}
-              className={getTabClass('recommended')}
-            >
-              推荐套餐
-            </button> */}
-            <button
-              onClick={() => setSelectedProduct('chatgpt')}
-              className={getTabClass('chatgpt')}
-            >
-              ChatGPT账号
-            </button>
-            <button
-              onClick={() => setSelectedProduct('accelerator')}
-              className={getTabClass('accelerator')}
-            >
-              加速器
-            </button>
-            <button
-              onClick={() => setSelectedProduct('recharge')}
-              className={getTabClass('recharge')}
-            >
-              充值服务
-            </button>
-          </div>
+        {/* 服务详情区域 */}
+        <section className="mb-16">
+          <h2 className="text-2xl font-bold mb-6">我们的服务</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {services.map((service, index) => (
+              <Card key={index} className="w-full">
+                <CardHeader>
+                  <CardTitle className="text-2xl font-bold">{service.title}</CardTitle>
+                  <CardDescription className="mt-2">{service.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      {service.features.map((feature, index) => (
+                        <div key={index} className="flex items-start space-x-2">
+                          <div className="h-5 w-5 text-green-500 flex-shrink-0">✓</div>
+                          <p className="text-sm text-gray-600">{feature}</p>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {service.hasPricingTiers && (
+                      <PricingTiers
+                        tiers={accelerationTiers}
+                        selectedTier={selectedTier}
+                        onSelect={setSelectedTier}
+                      />
+                    )}
 
-          <div className="flex justify-center">
-            {selectedProduct !== 'recommended' && (
-              <ProductConfigurator product={products[selectedProduct]} />
-            )}
+                    {service.hasCalculator && (
+                      <RechargeCalculator
+                        exchangeRate={exchangeRate}
+                        serviceFee={serviceFee}
+                      />
+                    )}
+
+                    {service.price && (
+                      <div className="mt-6">
+                        <p className="text-3xl font-bold">
+                          ¥{service.price.amount}
+                          <span className="text-base font-normal text-gray-600">/{service.price.unit}</span>
+                        </p>
+                      </div>
+                    )}
+
+                    {service.relatedServices && service.relatedServices.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        <p className="text-sm font-medium text-gray-600 flex items-center gap-1">
+                          <Info className="w-4 h-4" />
+                          推荐搭配使用
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {service.relatedServices.map((relatedService, index) => (
+                            <Badge 
+                              key={index} 
+                              variant="secondary" 
+                              className="cursor-help" 
+                              title={relatedService.description}
+                            >
+                              {relatedService.title}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-col space-y-2">
+                  <Button className="w-full">立即购买</Button>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={() => window.open(service.documentation, '_blank')}
+                  >
+                    了解更多
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         </section>
-      </div>
-    </main>
+
+        {/* 帮助文档入口 */}
+        <section className="text-center bg-gray-50 p-8 rounded-lg">
+          <h2 className="text-2xl font-bold mb-8">需要帮助？</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+              <CardContent className="p-6">
+                <h3 className="text-xl font-bold mb-2">新手指南</h3>
+                <p className="text-gray-600">从零开始的详细教程</p>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+              <CardContent className="p-6">
+                <h3 className="text-xl font-bold mb-2">常见问题</h3>
+                <p className="text-gray-600">解答使用过程中的困惑</p>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+              <CardContent className="p-6">
+                <h3 className="text-xl font-bold mb-2">联系客服</h3>
+                <p className="text-gray-600">获取专业的技术支持</p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      </main>
+    </div>
   );
 }

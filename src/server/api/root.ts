@@ -1,12 +1,10 @@
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 import { authRouter } from '~/server/api/routers/auth';
-import { serviceAccountRouter } from './routers/serviceAccount';
+import { appleAccountRouter } from './routers/apple-account';
 import { adminRouter } from "./routers/admin";
-import { apiKeyRouter } from "./routers/apiKey";
-import { acceleratorRouter } from "./routers/accelerator";
-import { bundleRouter } from "./routers/bundle";
-import { productRouter } from "./routers/product";
+import { serverAccountRouter } from "./routers/serverAccount";
 import { orderRouter } from "./routers/order";
+import {configRouter } from "./routers/config";
 /**
  * This is the primary router for your server.
  *
@@ -14,13 +12,11 @@ import { orderRouter } from "./routers/order";
  */
 export const appRouter = createTRPCRouter({
   auth: authRouter,
-  serviceAccount: serviceAccountRouter,
+  appleAccount: appleAccountRouter,
   admin: adminRouter,
-  apiKey: apiKeyRouter,
-  accelerator: acceleratorRouter,
-  bundle: bundleRouter,
-  product: productRouter,
+  serverAccount: serverAccountRouter,
   order: orderRouter,
+  config: configRouter
 });
 
 // export type definition of API

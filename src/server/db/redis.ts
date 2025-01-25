@@ -3,7 +3,7 @@ import { Redis } from 'ioredis';
 const redis = new Redis({
   host: 'localhost',
   port: 6379,
-  // password: 'your-password', // 如果设置了密码
+  password: '123456', // 如果设置了密码
 });
 
 // 测试连接

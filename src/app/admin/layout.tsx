@@ -42,32 +42,34 @@ const navigation = [
     icon: Users,
     children: [
       { name: '普通账号', href: '/admin/accounts/regular' },
-      { name: 'Plus账号', href: '/admin/accounts/plus' },
-      { name: 'API账号', href: '/admin/accounts/api' },
+      // { name: 'Plus账号', href: '/admin/accounts/plus' },
+      // { name: 'API账号', href: '/admin/accounts/api' },
       { name: '加速器账号', href: '/admin/accounts/accelerator' } 
     ]
   },
   { 
-    name: '产品管理',
+    name: '产品价格配置',
     icon: Package,
-    children: [
-      { name: '基础产品', href: '/admin/products/basic' },
-      { name: '推荐套餐', href: '/admin/products/bundles' },
+    href: '/admin/products'
+    // children: [
+      // { name: '基础产品', href: '/admin/products/basic' },
+      // { name: '推荐套餐', href: '/admin/products/bundles' },
       // { name: '配置选项', href: '/admin/products/options' },
-    ]
+    // ]
   },
   { 
     name: '订单管理',
     icon: ShoppingCart,
-    children: [
-      { name: '账号订单', href: '/admin/orders/accounts' },
-      { name: 'API订单', href: '/admin/orders/api' },
-      { name: '加速器订单', href: '/admin/orders/accelerator' },
-      { name: '充值订单', href: '/admin/orders/recharge' },
-    ]
+    href: '/admin/orders'
+    // children: [
+    //   { name: '账号订单', href: '/admin/orders/accounts' },
+    //   { name: 'API订单', href: '/admin/orders/api' },
+    //   { name: '加速器订单', href: '/admin/orders/accelerator' },
+    //   { name: '充值订单', href: '/admin/orders/recharge' },
+    // ]
   },
   { name: '财务管理', href: '/admin/finance', icon: CreditCard },
-  { name: '系统设置', href: '/admin/settings', icon: Settings },
+  // { name: '系统设置', href: '/admin/settings', icon: Settings },
 ];
 
 // 布局组件

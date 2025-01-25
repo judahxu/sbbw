@@ -1,201 +1,282 @@
-'use client'
-import React, { useState } from 'react';
-import { 
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Search, Download, Filter, RefreshCcw } from 'lucide-react';
+// src/app/admin/orders/page.tsx
+'use client';
 
-const OrderManagement = () => {
-  // States for filters
-  const [orderStatus, setOrderStatus] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateRange, setDateRange] = useState('today');
+import { useState } from 'react';
+import { ResourcePoolStatus } from './components/ResourcePoolStatus';
+import { StatsOverview } from './components/StatsOverview';
+import { OrderTable } from './components/OrderTable';
+import { OrderToolbar } from './components/OrderToolbar';
+import { RechargeModal } from './components/RechargeModal';
+import { AppleIdModal } from './components/AppleIdModal';
+import { AccelerationModal } from './components/AccelerationModal';
+import { OrderDetailModal } from './components/OrderDetailModal';
+import { Order, OrderType, OrderStatus } from './types';
 
-  // Mock data for demonstration
-  const orders = [
+export default function OrdersPage() {
+  // 状态管理
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [showAppleIdModal, setShowAppleIdModal] = useState(false);
+  const [showAccelerationModal, setShowAccelerationModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // 处理订单操作
+  const handleProcess = (order: Order) => {
+    setSelectedOrder(order);
+    switch (order.type) {
+      case 'recharge':
+        setShowRechargeModal(true);
+        break;
+      case 'appleId':
+        setShowAppleIdModal(true);
+        break;
+      case 'acceleration':
+        setShowAccelerationModal(true);
+        break;
+    }
+  };
+
+  // 查看订单详情
+  const handleViewDetails = (order: Order) => {
+    setSelectedOrder(order);
+    setShowDetailModal(true);
+  };
+
+  // 取消订单
+  const handleCancel = async (order: Order) => {
+    try {
+      // 实现取消订单的逻辑
+      console.log('Cancelling order:', order.id);
+    } catch (error) {
+      console.error('Failed to cancel order:', error);
+    }
+  };
+
+  // 处理充值服务订单
+  const handleRechargeConfirm = async (giftCardCode: string, remark: string) => {
+    try {
+      // 实现充值服务处理逻辑
+      console.log('Processing recharge order:', {
+        orderId: selectedOrder?.id,
+        giftCardCode,
+        remark
+      });
+    } catch (error) {
+      console.error('Failed to process recharge order:', error);
+      throw error;
+    }
+  };
+
+  // 处理美区账号订单
+  const handleAppleIdConfirm = async (data: { 
+    email: string; 
+    password: string; 
+    remark?: string 
+  }) => {
+    try {
+      // 实现美区账号分配逻辑
+      console.log('Processing Apple ID order:', {
+        orderId: selectedOrder?.id,
+        ...data
+      });
+    } catch (error) {
+      console.error('Failed to process Apple ID order:', error);
+      throw error;
+    }
+  };
+
+  // 处理加速服务订单
+  const handleAccelerationConfirm = async (data: {
+    server: string;
+    port: number;
+    password: string;
+    remark?: string;
+  }) => {
+    try {
+      // 实现加速服务配置逻辑
+      console.log('Processing acceleration order:', {
+        orderId: selectedOrder?.id,
+        ...data
+      });
+    } catch (error) {
+      console.error('Failed to process acceleration order:', error);
+      throw error;
+    }
+  };
+
+  // 处理搜索
+  const handleSearch = (query: string) => {
+    console.log('Searching:', query);
+  };
+
+  // 处理类型筛选
+  const handleTypeChange = (type: OrderType | 'all') => {
+    console.log('Filtering by type:', type);
+  };
+
+  // 处理状态筛选
+  const handleStatusChange = (status: OrderStatus | 'all') => {
+    console.log('Filtering by status:', status);
+  };
+
+  // 处理数据导出
+  const handleExport = () => {
+    console.log('Exporting data');
+  };
+
+  // 示例数据
+  const mockStats = {
+    today: 24,
+    pending: 7,
+    monthlyIncome: 15789,
+    completionRate: 98
+  };
+
+  const mockPools = [
     {
-      id: "ORD001",
-      customer: "张三",
-      product: "ChatGPT账号（永久）",
-      amount: 299,
-      status: "pending",
-      paymentStatus: "paid",
-      createTime: "2024-01-17 14:30",
+      type: 'accelerator' as const,
+      available: 128,
+      total: 150,
+      warning: false
     },
     {
-      id: "ORD002",
-      customer: "李四",
-      product: "Plus账号（3个月）",
-      amount: 799,
-      status: "processing",
-      paymentStatus: "paid",
-      createTime: "2024-01-17 15:45",
-    },
-    // Add more mock orders...
+      type: 'appleId' as const,
+      available: 45,
+      total: 50,
+      warning: true
+    }
   ];
 
-  const getStatusBadge = (status) => {
-    const statusStyles = {
-      pending: "bg-yellow-100 text-yellow-800",
-      processing: "bg-blue-100 text-blue-800",
-      completed: "bg-green-100 text-green-800",
-      cancelled: "bg-red-100 text-red-800",
-    };
-
-    return (
-      <Badge className={`${statusStyles[status]} px-2 py-1 text-xs rounded-full`}>
-        {getStatusText(status)}
-      </Badge>
-    );
-  };
-
-  const getStatusText = (status) => {
-    const statusMap = {
-      pending: "待处理",
-      processing: "处理中",
-      completed: "已完成",
-      cancelled: "已取消",
-    };
-    return statusMap[status];
-  };
-
   return (
-    <div className="p-6">
-      {/* Header Section */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-4">订单管理</h1>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-white rounded-lg shadow">
-            <h3 className="text-sm font-medium text-gray-500">今日订单</h3>
-            <p className="text-2xl font-bold">142</p>
-          </div>
-          <div className="p-4 bg-white rounded-lg shadow">
-            <h3 className="text-sm font-medium text-gray-500">待处理</h3>
-            <p className="text-2xl font-bold text-yellow-600">23</p>
-          </div>
-          <div className="p-4 bg-white rounded-lg shadow">
-            <h3 className="text-sm font-medium text-gray-500">处理中</h3>
-            <p className="text-2xl font-bold text-blue-600">15</p>
-          </div>
-          <div className="p-4 bg-white rounded-lg shadow">
-            <h3 className="text-sm font-medium text-gray-500">已完成</h3>
-            <p className="text-2xl font-bold text-green-600">104</p>
-          </div>
-        </div>
-      </div>
+    <div className="p-8 space-y-6">
+      <StatsOverview stats={mockStats} />
+      
+      <ResourcePoolStatus 
+        pools={mockPools}
+        onAddResource={(type) => console.log('Adding resource:', type)}
+        onViewResources={(type) => console.log('Viewing resources:', type)}
+      />
+      
+      <OrderToolbar
+        onSearch={handleSearch}
+        onTypeChange={handleTypeChange}
+        onStatusChange={handleStatusChange}
+        onExport={handleExport}
+        onAdvancedFilter={() => console.log('Advanced filter')}
+      />
+      
+      <OrderTable
+        orders={[]} // 这里需要实际的订单数据
+        onProcess={handleProcess}
+        onViewDetails={handleViewDetails}
+        onCancel={handleCancel}
+      />
 
-      {/* Filters Section */}
-      <div className="mb-6 flex flex-wrap gap-4">
-        <div className="flex items-center space-x-2">
-          <Select defaultValue="all" onValueChange={setOrderStatus}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="订单状态" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部状态</SelectItem>
-              <SelectItem value="pending">待处理</SelectItem>
-              <SelectItem value="processing">处理中</SelectItem>
-              <SelectItem value="completed">已完成</SelectItem>
-              <SelectItem value="cancelled">已取消</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      {/* 处理弹窗 */}
+      {selectedOrder?.type === 'recharge' && (
+        <RechargeModal
+          open={showRechargeModal}
+          order={selectedOrder}
+          onClose={() => setShowRechargeModal(false)}
+          onConfirm={handleRechargeConfirm}
+        />
+      )}
 
-        <div className="flex items-center space-x-2">
-          <Select defaultValue="today" onValueChange={setDateRange}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="时间范围" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">今天</SelectItem>
-              <SelectItem value="yesterday">昨天</SelectItem>
-              <SelectItem value="week">本周</SelectItem>
-              <SelectItem value="month">本月</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      {selectedOrder?.type === 'appleId' && (
+        <AppleIdModal
+          open={showAppleIdModal}
+          order={selectedOrder}
+          onClose={() => setShowAppleIdModal(false)}
+          onConfirm={handleAppleIdConfirm}
+          onManualProcess={() => {
+            console.log('Manual process for Apple ID:', selectedOrder.id);
+            // 实现转人工处理逻辑
+          }}
+        />
+      )}
 
-        <div className="flex-1 flex items-center space-x-2">
-          <div className="relative flex-1">
-            <Input
-              type="text"
-              placeholder="搜索订单号/用户..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          </div>
-        </div>
+      {selectedOrder?.type === 'acceleration' && (
+        <AccelerationModal
+          open={showAccelerationModal}
+          order={selectedOrder}
+          onClose={() => setShowAccelerationModal(false)}
+          onConfirm={handleAccelerationConfirm}
+          onManualProcess={() => {
+            console.log('Manual process for acceleration:', selectedOrder.id);
+            // 实现转人工处理逻辑
+          }}
+        />
+      )}
 
-        <Button variant="outline" className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          导出
-        </Button>
-        
-        <Button variant="outline" className="flex items-center gap-2">
-          <RefreshCcw className="h-4 w-4" />
-          刷新
-        </Button>
-      </div>
-
-      {/* Orders Table */}
-      <div className="bg-white rounded-lg shadow">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-24">订单号</TableHead>
-              <TableHead>客户</TableHead>
-              <TableHead>产品</TableHead>
-              <TableHead className="text-right">金额</TableHead>
-              <TableHead>订单状态</TableHead>
-              <TableHead>支付状态</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.map((order) => (
-              <TableRow key={order.id}>
-                <TableCell className="font-medium">{order.id}</TableCell>
-                <TableCell>{order.customer}</TableCell>
-                <TableCell>{order.product}</TableCell>
-                <TableCell className="text-right">￥{order.amount}</TableCell>
-                <TableCell>{getStatusBadge(order.status)}</TableCell>
-                <TableCell>
-                  <Badge className="bg-green-100 text-green-800 px-2 py-1 text-xs rounded-full">
-                    已支付
-                  </Badge>
-                </TableCell>
-                <TableCell>{order.createTime}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">
-                    详情
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      {selectedOrder && (
+        <OrderDetailModal
+          open={showDetailModal}
+          order={selectedOrder}
+          onClose={() => {
+            setShowDetailModal(false);
+            setSelectedOrder(null);
+          }}
+        />
+      )}
     </div>
   );
-};
+}
 
-export default OrderManagement;
+// API 调用函数
+async function fetchOrders(params?: {
+  search?: string;
+  type?: OrderType | 'all';
+  status?: OrderStatus | 'all';
+  page?: number;
+  pageSize?: number;
+}) {
+  // 实现获取订单列表的API调用
+  return fetch('/api/admin/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params),
+  }).then(res => res.json());
+}
+
+async function processOrder(orderId: string, data: any) {
+  // 实现处理订单的API调用
+  return fetch(`/api/admin/orders/${orderId}/process`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  }).then(res => res.json());
+}
+
+async function cancelOrder(orderId: string) {
+  // 实现取消订单的API调用
+  return fetch(`/api/admin/orders/${orderId}/cancel`, {
+    method: 'POST',
+  }).then(res => res.json());
+}
+
+async function exportOrders(params?: any) {
+  // 实现导出订单的API调用
+  return fetch('/api/admin/orders/export', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params),
+  }).then(res => res.blob());
+}
+
+// 工具函数
+function downloadBlob(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}

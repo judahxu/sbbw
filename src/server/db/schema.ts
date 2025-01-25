@@ -11,7 +11,8 @@ import {
   boolean,
   json,
   mysqlEnum,
-  decimal
+  decimal,
+
 } from "drizzle-orm/mysql-core";
 import { type AdapterAccount } from "next-auth/adapters";
 
@@ -44,7 +45,7 @@ export const users = createTable("user", {
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   sessions: many(sessions),
-  serviceAccounts: many(serviceAccounts), 
+  // serviceAccounts: many(serviceAccounts), 
   // apiKeys: many(apiKeys),
   // acceleratorServices: many(acceleratorServices),
 }));
@@ -114,533 +115,289 @@ export const verificationTokens = createTable(
   })
 );
 
+//新表
 
-
-
-
-
-
-// 账号相关枚举定义
-export const AccountPlatform = {
-  GPT: 'gpt',
-  CLAUDE: 'claude',
-} as const;
-
-export const AccountStatus = {
-  IN_STOCK: 'in_stock',
-  ASSIGNED: 'assigned',
-  EXPIRED: 'expired',
-} as const;
-
-// AI账号表
-export const serviceAccounts  = createTable("service_account", {
+export const appleAccounts = createTable("apple_account", {
   id: varchar("id", { length: 255 })
     .notNull()
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  email: varchar("email", { length: 255 }).notNull(),
-  password: varchar("password", { length: 255 }).notNull(),
-  platform: mysqlEnum("platform", ['gpt', 'claude']).notNull(),
-  type: mysqlEnum("type", ['permanent', 'temporary']).notNull(),
-  status: varchar("status", { length: 20 })
+    
+  email: varchar("email", { length: 255 })
     .notNull()
-    .default('in_stock'),
-  bundleType: varchar("bundle_type", { length: 255 }), // 套餐类型
+    .unique(),
+    
+  password: varchar("password", { length: 255 })
+    .notNull(),
+    
+  status: mysqlEnum("status", ['available', 'sold', 'abnormal'])
+    .notNull()
+    .default('available'),
+    
+  createdAt: timestamp("created_at", {
+    mode: "date",
+    fsp: 3,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP(3)`),
+    
+  updatedAt: timestamp("updated_at", {
+    mode: "date",
+    fsp: 3,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP(3)`),
+    
+  soldAt: timestamp("sold_at", {
+    mode: "date",
+    fsp: 3,
+  }),
+    
+  orderId: varchar("order_id", { length: 255 }),
+    
+  notes: text("notes"),
+});
 
-      // 临时账号相关
-  temporaryDuration: varchar("temporary_duration", { length: 20 }),  // 如 7d, 15d, 30d
-  temporaryExpireAt: timestamp("temporary_expire_at"),  // 到期时间
+export const serverAccounts = createTable("server_account", {
+  id: varchar("id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   
-  // Plus相关
-  plusDuration: varchar("plus_duration", { length: 20 }), // monthly, quarterly, yearly
-  plusExpireAt: timestamp("plus_expire_at"), // Plus到期时间
+  name: varchar("name", { length: 255 })
+    .notNull(),
   
-  // 加速器相关
-  acceleratorDuration: varchar("accelerator_duration", { length: 20 }), // 30d, 90d, 180d, 365d
-  acceleratorExpireAt: timestamp("accelerator_expire_at"), // 加速器到期时间
-  assignedEmail: varchar("assigned_email", { length: 255 }),  // 改为直接存储邮箱
-  assignedAt: timestamp("assigned_at"),
-  isActive: boolean("is_active")
+  config: varchar("config", { length: 1000 })
+    .notNull(),
+  
+  status: varchar("status", { length: 20 })
+    .default("available")
+    .notNull(),
+  
+  assignedTo: varchar("assigned_to", { length: 255 })
+    .references(() => users.id),
+  
+  assignmentStart: timestamp("assignment_start", {
+    mode: "date",
+    fsp: 3,
+  }),
+  
+  duration: int("duration"),
+  
+  assignmentEnd: timestamp("assignment_end", {
+    mode: "date",
+    fsp: 3,
+  }),
+  
+  createdAt: timestamp("created_at", {
+    mode: "date",
+    fsp: 3,
+  })
+    .default(sql`CURRENT_TIMESTAMP(3)`)
+    .notNull(),
+  
+  updatedAt: timestamp("updated_at", {
+    mode: "date",
+    fsp: 3,
+  })
+    .default(sql`CURRENT_TIMESTAMP(3)`)
+    .notNull(),
+});
+
+// 创建索引
+export const appleAccountsIndexes = {
+  statusIdx: index("status_idx").on(appleAccounts.status),
+  emailIdx: index("email_idx").on(appleAccounts.email),
+  orderIdIdx: index("order_id_idx").on(appleAccounts.orderId),
+};
+
+// 关系定义（如果需要）
+export const appleAccountsRelations = relations(appleAccounts, ({ one }) => ({
+  order: one(orders, {
+    fields: [appleAccounts.orderId],
+    references: [orders.id],
+  }),
+}));
+
+
+
+// 配置类型枚举
+export const ConfigType = {
+  ACCELERATION: 'acceleration',
+  APPSTORE: 'appstore',
+  EXCHANGE_RATE: 'exchange_rate',
+  SERVICE_FEE: 'service_fee',
+} as const;
+
+// 计费周期枚举
+export const BillingCycle = {
+  MONTHLY: 'monthly',
+  QUARTERLY: 'quarterly',
+  YEARLY: 'yearly',
+  ONCE: 'once',
+} as const;
+
+// 统一配置表
+// 统一配置表
+export const configs = createTable("config", {
+  id: varchar("id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  
+  type: varchar("type", { length: 20 })
+    .notNull(),
+  
+  name: varchar("name", { length: 100 })
+    .notNull(),
+  
+  cycle: varchar("cycle", { length: 20 }),
+  
+  original_price: decimal("original_price", { precision: 10, scale: 2 }),
+  
+  current_price: decimal("current_price", { precision: 10, scale: 2 }),
+  
+  exchange_rate: decimal("exchange_rate", { precision: 10, scale: 4 }),
+  
+  fee_percentage: decimal("fee_percentage", { precision: 5, scale: 2 }),
+  
+  minimum_fee: decimal("minimum_fee", { precision: 10, scale: 2 }),
+  
+  maximum_fee: decimal("maximum_fee", { precision: 10, scale: 2 }),
+  
+  is_active: boolean("is_active")
     .notNull()
     .default(true),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
-  updatedAt: timestamp("updated_at").onUpdateNow(),
-  lastCheckedAt: timestamp("last_checked_at"),
-  note: text("note"),
-}, (account) => ({
-  emailIdx: index("service_account_email_idx").on(account.email),
-  statusIdx: index("service_account_status_idx").on(account.status),
-  plusExpireAtIdx: index("account_plus_expire_at_idx").on(account.plusExpireAt),
-  acceleratorExpireAtIdx: index("account_accelerator_expire_at_idx").on(account.acceleratorExpireAt),
-  temporaryExpireAtIdx: index("account_temporary_expire_at_idx").on(account.temporaryExpireAt),
-}));
-
-// Plus订阅表
-export const serviceAccountSubscriptions  = createTable("service_account_subscription", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  accountId: varchar("account_id", { length: 255 })
-    .notNull()
-    .references(() => serviceAccounts.id),
-  subscriptionType: mysqlEnum("subscription_type", ['monthly', 'quarterly', 'yearly'])
-    .notNull(),
-  startsAt: timestamp("starts_at").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
-  autoRenewal: boolean("auto_renewal").default(false),
-  status: mysqlEnum("status", ['active', 'expired', 'cancelled'])
-    .notNull()
-    .default('active'),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
-  updatedAt: timestamp("updated_at").onUpdateNow(),
-}, (subscription) => ({
-  accountIdx: index("plus_subscription_account_idx").on(subscription.accountId),
-  expiryIdx: index("plus_subscription_expiry_idx").on(subscription.expiresAt),
-}));
-
-// API Key表
-export const apiKeys = createTable("api_key", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  apiKey: varchar("api_key", { length: 255 }).notNull(),
-  platform: mysqlEnum("platform", ['openai', 'claude']).notNull(),
-  userEmail: varchar("user_email", { length: 255 }).notNull(),
-  quotaLimit: int("quota_limit").notNull(),
-  quotaUsed: int("quota_used").default(0),
-  expiresAt: timestamp("expires_at"),
-  status: mysqlEnum("status", ['active', 'expired', 'disabled'])
-    .notNull()
-    .default('active'),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
-  updatedAt: timestamp("updated_at").onUpdateNow(),
-}, (apiKey) => ({
-  emailIdx: index("api_key_email_idx").on(apiKey.userEmail),
-  expiryIdx: index("api_key_expiry_idx").on(apiKey.expiresAt),
-  statusIdx: index("api_key_status_idx").on(apiKey.status),
-}));
-
-// 加速器服务表
-export const acceleratorServices = createTable("accelerator_service", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  type: mysqlEnum("type", ['personal', 'team']).notNull(),
-  deviceLimit: int("device_limit").notNull(),
-  accountId: varchar("account_id", { length: 255 }).notNull(),
-  userEmail: varchar("user_email", { length: 255 }).notNull(),
-  duration: varchar("duration", { length: 20 }).notNull(), // 1m/3m/6m/12m 
-  startsAt: timestamp("starts_at").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
-  status: mysqlEnum("status", ['active', 'expired'])
-    .notNull()
-    .default('active'),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
-  updatedAt: timestamp("updated_at").onUpdateNow(),
-}, (service) => ({
-  accountIdIdx: index("accelerator_account_id_idx").on(service.accountId),
-  userEmailIdx: index("accelerator_user_email_idx").on(service.userEmail),
-  expiryIdx: index("accelerator_expiry_idx").on(service.expiresAt),
-  statusIdx: index("accelerator_status_idx").on(service.status),
-}));
-
-// 加速器设备表
-export const acceleratorDevices = createTable("accelerator_device", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  serviceId: varchar("service_id", { length: 255 })
-    .notNull()
-    .references(() => acceleratorServices.id),
-  deviceId: varchar("device_id", { length: 255 }).notNull(),
-  deviceName: varchar("device_name", { length: 255 }),
-  lastActiveAt: timestamp("last_active_at"),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
-}, (device) => ({
-  serviceIdx: index("device_service_idx").on(device.serviceId),
-  deviceIdx: index("device_id_idx").on(device.deviceId),
-}));
-
-
-
-
-export const serviceAccountsRelations  = relations(serviceAccounts, ({ one,many }) => ({
-  plusSubscription: one(serviceAccountSubscriptions, {
-    fields: [serviceAccounts.id],
-    references: [serviceAccountSubscriptions.accountId],
-  }),
-}));
-
-export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
-
-}));
-
-export const acceleratorServicesRelations = relations(acceleratorServices, ({ one, many }) => ({
-  devices: many(acceleratorDevices),
-}));
-
-export const acceleratorDevicesRelations = relations(acceleratorDevices, ({ one }) => ({
-  service: one(acceleratorServices, {
-    fields: [acceleratorDevices.serviceId],
-    references: [acceleratorServices.id],
-  }),
-}));
-
-
-// src/server/db/schema.ts
-
-export const bundles = createTable("bundle", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: varchar("name", { length: 255 }).notNull(),
-  description: text("description").notNull(),
-  accountType: mysqlEnum("account_type", ['permanent', 'temporary']).notNull(),
-  platform: mysqlEnum("platform", ['chatgpt', 'claude']).notNull(),
-  plusDuration: varchar("plus_duration", { length: 255 }),
-  acceleratorDuration: varchar("accelerator_duration", { length: 255 }),
-  features: json("features").$type<Array<{ label: string; included: boolean }>>(),
-  originalPrice: decimal("original_price", { precision: 10, scale: 2 }).notNull(),
-  salePrice: decimal("sale_price", { precision: 10, scale: 2 }).notNull(),
-  tag: varchar("tag", { length: 50 }),
-  status: mysqlEnum("status", ['active', 'inactive']).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").onUpdateNow(),
-}, (table) => ({
-  nameIdx: index("bundle_name_idx").on(table.name),
-  statusIdx: index("bundle_status_idx").on(table.status),
-  platformIdx: index("bundle_platform_idx").on(table.platform)
-}));
-
-
-
-// 产品表
-export const products = createTable("product", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: varchar("name", { length: 255 }).notNull(),
-  type: mysqlEnum("type", ['account', 'accelerator', 'recharge'])
-    .notNull(),
-  basePrice: decimal("base_price", { precision: 10, scale: 2 })
-    .notNull(),
-  status: mysqlEnum("status", ['active', 'inactive'])
-    .notNull()
-    .default('inactive'),
-  description: text("description"),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
-  updatedAt: timestamp("updated_at").onUpdateNow(),
-});
-
-// 选项组表
-export const optionGroups = createTable("option_group", {
-  id: varchar("id", { length: 255 })  // 改用字符串ID
-  .notNull()
-  .primaryKey(),
-  productId: varchar("product_id", { length: 255 })
-    .notNull()
-    .references(() => products.id),
-  name: varchar("name", { length: 255 }).notNull(),
-  required: boolean("required").default(false),
-  dependencies: json("dependencies").$type<{
-    groupId: string;
-    optionValue: string;
-  }>(),
-  order: int("order").default(0),
-});
-
-// 选项表
-export const productOptions = createTable("product_option", {
-  id: varchar("id", { length: 255 })  // 改用字符串ID
-  .notNull()
-  .primaryKey(),
-  groupId: varchar("group_id", { length: 255 })  // 改用字符串ID
-    .notNull()
-    .references(() => optionGroups.id),
-  label: varchar("label", { length: 255 }).notNull(),
-  value: varchar("value", { length: 255 }).notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).default("0"),
-  order: int("order").default(0),
-});
-
-// 关系定义
-export const productsRelations = relations(products, ({ many }) => ({
-  optionGroups: many(optionGroups)
-}));
-
-export const optionGroupsRelations = relations(optionGroups, ({ one, many }) => ({
-  product: one(products, {
-    fields: [optionGroups.productId],
-    references: [products.id]
-  }),
-  options: many(productOptions)
-}));
-
-export const productOptionsRelations = relations(productOptions, ({ one }) => ({
-  group: one(optionGroups, {
-    fields: [productOptions.groupId],
-    references: [optionGroups.id]
+  
+  updated_at: timestamp("updated_at", {
+    mode: "date",
+    fsp: 3,
   })
-}));
-
-
-// 配置模板表
-export const configTemplates = createTable("config_template", {
-  id: varchar("id", { length: 255 })
     .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: varchar("name", { length: 255 }).notNull(),
-  type: mysqlEnum("type", ['account', 'accelerator', 'recharge'])
-    .notNull(),
-  config: json("config").notNull(),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
-  updatedAt: timestamp("updated_at").onUpdateNow(),
-});
-
-// 产品配置表
-export const productConfigs = createTable("product_config", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  productId: varchar("product_id", { length: 255 })
-    .notNull()
-    .references(() => products.id),
-  config: json("config").notNull(),
-  versionId: varchar("version_id", { length: 255 })
-    .references(() => configVersions.id),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
-  updatedAt: timestamp("updated_at").onUpdateNow(),
-});
-
-// 配置版本表
-export const configVersions = createTable("config_version", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  productId: varchar("product_id", { length: 255 })
-    .notNull()
-    .references(() => products.id),
-  config: json("config").notNull(),
-  version: int("version").notNull(),
-  source: varchar("source", { length: 50 })
-    .notNull()
-    .default('manual'),
-  sourceId: varchar("source_id", { length: 255 }),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
+    .default(sql`CURRENT_TIMESTAMP(3)`),
+  
+  updated_by: varchar("updated_by", { length: 255 })
     .notNull(),
 });
 
-// 关系定义
-export const productConfigsRelations = relations(productConfigs, ({ one }) => ({
-  product: one(products, {
-    fields: [productConfigs.productId],
-    references: [products.id]
-  }),
-  currentVersion: one(configVersions, {
-    fields: [productConfigs.versionId],
-    references: [configVersions.id]
-  })
-}));
 
-export const configVersionsRelations = relations(configVersions, ({ one }) => ({
-  product: one(products, {
-    fields: [configVersions.productId],
-    references: [products.id]
-  })
-}));
-
-
-
-
-// 基础订单表
+// 订单主表
 export const orders = createTable("order", {
+  // 基本信息
   id: varchar("id", { length: 255 })
     .notNull()
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  orderNumber: varchar("order_number", { length: 255 }).notNull(),
-  type: mysqlEnum("type", [
-    'account',
-    'accelerator', 
-    'api',
-    'plus_recharge'
-  ]).notNull(),
-  userId: varchar("user_id", { length: 255 }).notNull(),
-  userEmail: varchar("user_email", { length: 255 }).notNull(),
-  amountUsd: decimal("amount_usd", { precision: 10, scale: 2 }).notNull(),
-  amountCny: decimal("amount_cny", { precision: 10, scale: 2 }).notNull(),
-  paymentChannel: mysqlEnum("payment_channel", [
-    'alipay',
-    'wechat',
-    'transfer'
-  ]).notNull(),
-  paymentStatus: mysqlEnum("payment_status", [
-    'pending',
+  
+  // 关联用户
+  userId: varchar("user_id", { length: 255 })
+    .notNull()
+    .references(() => users.id),
+  
+  // 订单类型
+  type: mysqlEnum("type", ['recharge', 'appleId', 'acceleration'])
+    .notNull(),
+  
+  // 订单状态
+  status: mysqlEnum("status", [
+    'pending_payment',
     'paid',
-    'failed',
-    'refunded'
-  ]).notNull(),
-  orderStatus: mysqlEnum("order_status", [
-    'pending',
     'processing',
     'completed',
     'failed',
-    'cancelled'
+    'cancelled',
+    'refunded'
   ]).notNull(),
-  operatorId: varchar("operator_id", { length: 255 }),
-  note: text("note"),
-  paymentTime: timestamp("payment_time"),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
+  
+  // 金额
+  amount: decimal("amount", { precision: 10, scale: 2 })
     .notNull(),
-  updatedAt: timestamp("updated_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .onUpdateNow(),
+  
+  // 处理信息
+  processedBy: varchar("processed_by", { length: 255 })
+    .references(() => users.id),
+  processedAt: timestamp("processed_at", {
+    mode: "date",
+    fsp: 3,
+  }),
+  
+  // 备注
+  remark: varchar("remark", { length: 1000 }),
+  
+  // 时间戳
+  createdAt: timestamp("created_at", {
+    mode: "date",
+    fsp: 3,
+  }).default(sql`CURRENT_TIMESTAMP(3)`),
+  updatedAt: timestamp("updated_at", {
+    mode: "date",
+    fsp: 3,
+  }).default(sql`CURRENT_TIMESTAMP(3)`),
 });
 
-// 账号订单详情
-export const accountOrders = createTable("account_order", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
+// 充值服务订单扩展表
+export const rechargeOrders = createTable("recharge_order", {
+  // 关联订单主表
   orderId: varchar("order_id", { length: 255 })
     .notNull()
-    .references(() => orders.id),
-  productType: mysqlEnum("product_type", ['chatgpt', 'claude']).notNull(),
-  accountType: mysqlEnum("account_type", ['permanent', 'temporary']).notNull(),
-  bundleType: varchar("bundle_type", { length: 255 }),
-  includePlus: boolean("include_plus").default(false),
-  temporaryDays: int("temporary_days"),
-  acceleratorDays: int("accelerator_days"),
-  plusMonths: int("plus_months"),
-  accountId: varchar("account_id", { length: 255 }),
-  allocationStatus: mysqlEnum("allocation_status", [
-    'pending',
-    'completed',
-    'failed'
-  ]).default('pending'),
-  accountEmail: varchar("account_email", { length: 255 }),
-  acceleratorExpireAt: timestamp("accelerator_expire_at"),
-  plusExpireAt: timestamp("plus_expire_at"),
-});
-
-// 加速器订单详情
-export const acceleratorOrders = createTable("accelerator_order", {
-  id: varchar("id", { length: 255 })
-    .notNull()
     .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  orderId: varchar("order_id", { length: 255 })
-    .notNull()
     .references(() => orders.id),
-  version: mysqlEnum("version", ['personal', 'team']).notNull(),
-  duration: varchar("duration", { length: 20 }).notNull(),
-  deviceLimit: int("device_limit").notNull(),
-  currentDevices: int("current_devices").default(0),
-  serviceId: varchar("service_id", { length: 255 }),
-  bundleOrderId: varchar("bundle_order_id", { length: 255 }),
-  startsAt: timestamp("starts_at"),
-  expiresAt: timestamp("expires_at"),
-});
-
-// API订单详情
-export const apiOrders = createTable("api_order", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  orderId: varchar("order_id", { length: 255 })
-    .notNull()
-    .references(() => orders.id),
-  type: mysqlEnum("type", ['token', 'rental']).notNull(),
-  platform: mysqlEnum("platform", ['openai', 'anthropic']).notNull(),
-  spec: varchar("spec", { length: 255 }).notNull(),
-  tokenAmount: int("token_amount"),
-  rentalDays: int("rental_days"),
-  apiKeyId: varchar("api_key_id", { length: 255 }),
-  apiKey: varchar("api_key", { length: 255 }),
-  expiresAt: timestamp("expires_at"),
-});
-
-// Plus充值订单详情
-export const plusRechargeOrders = createTable("plus_recharge_order", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  orderId: varchar("order_id", { length: 255 })
-    .notNull()
-    .references(() => orders.id),
-  accountEmail: varchar("account_email", { length: 255 }).notNull(),
-  accountPassword: varchar("account_password", { length: 255 }).notNull(),
-  contact: varchar("contact", { length: 255 }),
-  subscription: varchar("subscription", { length: 20 }).notNull(),
-  retryCount: int("retry_count").default(0),
-  failureReason: varchar("failure_reason", { length: 255 }),
-});
-
-// 订单历史记录
-export const orderHistory = createTable("order_history", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  orderId: varchar("order_id", { length: 255 })
-    .notNull()
-    .references(() => orders.id),
-  action: varchar("action", { length: 255 }).notNull(),
-  content: text("content").notNull(),
-  operatorId: varchar("operator_id", { length: 255 }),
-  operatorName: varchar("operator_name", { length: 255 }),
-  createdAt: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
+  
+  // 美金金额
+  usdAmount: decimal("usd_amount", { precision: 10, scale: 2 })
     .notNull(),
-  metadata: json("metadata"),
+  
+  // 汇率
+  exchangeRate: decimal("exchange_rate", { precision: 10, scale: 4 })
+    .notNull(),
+  
+  // 充值账号
+  appliedAccount: varchar("applied_account", { length: 255 })
+    .notNull(),
+  
+  // 礼品卡代码
+  giftCardCode: varchar("gift_card_code", { length: 255 }),
 });
 
-// 关系定义
-export const ordersRelations = relations(orders, ({ one }) => ({
-  accountOrder: one(accountOrders, {
-    fields: [orders.id],
-    references: [accountOrders.orderId],
+// 美区账号订单扩展表
+export const appleIdOrders = createTable("apple_id_order", {
+  // 关联订单主表
+  orderId: varchar("order_id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .references(() => orders.id),
+  
+  // 账号信息
+  email: varchar("email", { length: 255 }),
+  password: varchar("password", { length: 255 }),
+});
+
+// 加速服务订单扩展表
+export const accelerationOrders = createTable("acceleration_order", {
+  // 关联订单主表
+  orderId: varchar("order_id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .references(() => orders.id),
+  
+  // 服务计划
+  plan: mysqlEnum("plan", ['monthly', 'quarterly', 'yearly'])
+    .notNull(),
+  
+  // 服务配置
+  configuration: json("configuration").$type<{
+    server: string;
+    port: number;
+    password: string;
+  }>(),
+  
+  // 服务期限
+  startDate: timestamp("start_date", {
+    mode: "date",
+    fsp: 3,
   }),
-  acceleratorOrder: one(acceleratorOrders, {
-    fields: [orders.id],
-    references: [acceleratorOrders.orderId],
+  endDate: timestamp("end_date", {
+    mode: "date",
+    fsp: 3,
   }),
-  apiOrder: one(apiOrders, {
-    fields: [orders.id],
-    references: [apiOrders.orderId],
-  }),
-  plusRechargeOrder: one(plusRechargeOrders, {
-    fields: [orders.id],
-    references: [plusRechargeOrders.orderId],
-  }),
-}));
+});

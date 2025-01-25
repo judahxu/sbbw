@@ -1,388 +1,327 @@
-// src/server/api/routers/order.ts
-
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { 
-  orders, 
-  accountOrders,
-  acceleratorOrders,
-  apiOrders,
-  plusRechargeOrders,
-  orderHistory
-} from "~/server/db/schema";
-import { and, eq, like, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { orders, rechargeOrders, appleIdOrders, accelerationOrders } from "~/server/db/schema";
 
-// 基础订单查询参数验证
-const orderQuerySchema = z.object({
-  type: z.enum(['account', 'accelerator', 'api', 'plus_recharge']).optional(),
-  status: z.string().optional(),
-  paymentStatus: z.string().optional(),
-  search: z.string().optional(),
-  dateRange: z.object({
-    from: z.date(),
-    to: z.date()
-  }).optional(),
+// 输入验证Schema
+const OrderStatusSchema = z.enum([
+  'pending_payment',
+  'paid',
+  'processing',
+  'completed',
+  'failed',
+  'cancelled',
+  'refunded'
+]);
+
+const OrderTypeSchema = z.enum(['recharge', 'appleId', 'acceleration']);
+
+const PaginationSchema = z.object({
   page: z.number().min(1).default(1),
   pageSize: z.number().min(1).max(100).default(10),
 });
 
+const OrderFilterSchema = z.object({
+  type: OrderTypeSchema.optional(),
+  status: OrderStatusSchema.optional(),
+  search: z.string().optional(),
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
+});
+
+// 处理订单的输入Schema
+const ProcessRechargeSchema = z.object({
+  orderId: z.string(),
+  giftCardCode: z.string(),
+  remark: z.string().optional(),
+});
+
+const ProcessAppleIdSchema = z.object({
+  orderId: z.string(),
+  email: z.string().email(),
+  password: z.string(),
+  remark: z.string().optional(),
+});
+
+const ProcessAccelerationSchema = z.object({
+  orderId: z.string(),
+  configuration: z.object({
+    server: z.string(),
+    port: z.number(),
+    password: z.string(),
+  }),
+  remark: z.string().optional(),
+});
+
 export const orderRouter = createTRPCRouter({
   // 获取订单列表
-  list: protectedProcedure
-    .input(orderQuerySchema)
+  getOrders: protectedProcedure
+    .input(PaginationSchema.merge(OrderFilterSchema))
     .query(async ({ ctx, input }) => {
-      const { type, status, paymentStatus, search, dateRange, page, pageSize } = input;
-      
+      const { page, pageSize, type, status, search, startDate, endDate } = input;
+      const offset = (page - 1) * pageSize;
+
+      // 构建where条件
       const whereConditions = [];
-      
-      if (type) {
-        whereConditions.push(eq(orders.type, type));
-      }
-      
-      if (status) {
-        whereConditions.push(eq(orders.orderStatus, status));
-      }
-      
-      if (paymentStatus) {
-        whereConditions.push(eq(orders.paymentStatus, paymentStatus));
-      }
-      
+      if (type) whereConditions.push(eq(orders.type, type));
+      if (status) whereConditions.push(eq(orders.status, status));
+      if (startDate) whereConditions.push(sql`created_at >= ${startDate}`);
+      if (endDate) whereConditions.push(sql`created_at <= ${endDate}`);
       if (search) {
         whereConditions.push(
-          sql`(${orders.orderNumber} LIKE ${`%${search}%`} OR ${orders.userEmail} LIKE ${`%${search}%`})`
-        );
-      }
-      
-      if (dateRange) {
-        whereConditions.push(
-          sql`${orders.createdAt} BETWEEN ${dateRange.from} AND ${dateRange.to}`
+          sql`id LIKE ${`%${search}%`} OR user_id LIKE ${`%${search}%`}`
         );
       }
 
-      const items = await ctx.db.query.orders.findMany({
-        where: and(...whereConditions),
-        limit: pageSize,
-        offset: (page - 1) * pageSize,
-        with: {
-          accountOrder: true,
-          acceleratorOrder: true,
-          apiOrder: true,
-          plusRechargeOrder: true,
-        },
-        orderBy: (orders, { desc }) => [desc(orders.createdAt)],
-      });
-
-      const [{ count }] = await ctx.db
-        .select({ count: sql<number>`count(*)` })
-        .from(orders)
-        .where(and(...whereConditions));
+      // 查询订单
+      const [orderList, totalCount] = await Promise.all([
+        ctx.db.query.orders.findMany({
+          where: and(...whereConditions),
+          limit: pageSize,
+          offset,
+          orderBy: (orders, { desc }) => [desc(orders.createdAt)],
+          with: {
+            user: true,
+            rechargeOrder: true,
+            appleIdOrder: true,
+            accelerationOrder: true,
+          },
+        }),
+        ctx.db.query.orders.findMany({
+          where: and(...whereConditions),
+          columns: {
+            id: true,
+          },
+        }).then(results => results.length),
+      ]);
 
       return {
-        items,
-        total: count,
+        orders: orderList,
+        total: totalCount,
         page,
         pageSize,
       };
     }),
 
   // 获取订单详情
-  detail: protectedProcedure
-    .input(z.object({ 
-      id: z.string(),
-      type: z.enum(['account', 'accelerator', 'api', 'plus_recharge'])
-    }))
+  getOrderDetail: protectedProcedure
+    .input(z.object({ orderId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const { id, type } = input;
-
       const order = await ctx.db.query.orders.findFirst({
-        where: eq(orders.id, id),
+        where: eq(orders.id, input.orderId),
         with: {
-          accountOrder: type === 'account',
-          acceleratorOrder: type === 'accelerator',
-          apiOrder: type === 'api',
-          plusRechargeOrder: type === 'plus_recharge',
-        }
+          user: true,
+          rechargeOrder: true,
+          appleIdOrder: true,
+          accelerationOrder: true,
+        },
       });
 
       if (!order) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "订单不存在"
+          code: 'NOT_FOUND',
+          message: '订单不存在',
         });
       }
 
-      // 获取订单历史
-      const history = await ctx.db.query.orderHistory.findMany({
-        where: eq(orderHistory.orderId, id),
-        orderBy: (history, { desc }) => [desc(history.createdAt)],
-      });
-
-      return {
-        ...order,
-        history
-      };
-    }),
-
-  // 更新订单状态
-  updateStatus: protectedProcedure
-    .input(z.object({
-      id: z.string(),
-      status: z.string(),
-      note: z.string().optional(),
-      metadata: z.record(z.any()).optional()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { id, status, note, metadata } = input;
-
-      await ctx.db.transaction(async (tx) => {
-        // 更新订单状态
-        await tx.update(orders)
-          .set({ 
-            orderStatus: status,
-            updatedAt: new Date()
-          })
-          .where(eq(orders.id, id));
-
-        // 记录历史
-        await tx.insert(orderHistory).values({
-          orderId: id,
-          action: 'update_status',
-          content: `订单状态更新为: ${status}${note ? ` - ${note}` : ''}`,
-          operatorId: ctx.session?.user?.id,
-          operatorName: ctx.session?.user?.name,
-          metadata
-        });
-      });
-
-      return { success: true };
+      return order;
     }),
 
   // 获取订单统计
-  getStats: protectedProcedure
-    .input(z.object({
-      type: z.enum(['account', 'accelerator', 'api', 'plus_recharge']).optional(),
-      dateRange: z.object({
-        from: z.date(),
-        to: z.date()
-      }).optional()
-    }))
-    .query(async ({ ctx, input }) => {
-      const { type, dateRange } = input;
-      
-      const whereConditions = [];
-      
-      if (type) {
-        whereConditions.push(eq(orders.type, type));
-      }
-      
-      if (dateRange) {
-        whereConditions.push(
-          sql`${orders.createdAt} BETWEEN ${dateRange.from} AND ${dateRange.to}`
-        );
-      }
+  getOrderStats: protectedProcedure.query(async ({ ctx }) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-      const [stats] = await ctx.db
-        .select({
-          total: sql<number>`COUNT(*)`,
-          totalAmountUsd: sql<number>`SUM(${orders.amountUsd})`,
-          totalAmountCny: sql<number>`SUM(${orders.amountCny})`,
-          pending: sql<number>`SUM(CASE WHEN ${orders.orderStatus} = 'pending' THEN 1 ELSE 0 END)`,
-          processing: sql<number>`SUM(CASE WHEN ${orders.orderStatus} = 'processing' THEN 1 ELSE 0 END)`,
-          completed: sql<number>`SUM(CASE WHEN ${orders.orderStatus} = 'completed' THEN 1 ELSE 0 END)`,
-          failed: sql<number>`SUM(CASE WHEN ${orders.orderStatus} = 'failed' THEN 1 ELSE 0 END)`,
-          pendingPayment: sql<number>`SUM(CASE WHEN ${orders.paymentStatus} = 'pending' THEN 1 ELSE 0 END)`,
-          successRate: sql<number>`ROUND(
-            SUM(CASE WHEN ${orders.orderStatus} = 'completed' THEN 1 ELSE 0 END) * 100.0 / 
-            COUNT(*), 
-            2
-          )`
-        })
-        .from(orders)
-        .where(and(...whereConditions));
+    const [todayOrders, pendingOrders, monthlyIncome] = await Promise.all([
+      // 今日订单数
+      ctx.db.query.orders.findMany({
+        where: sql`created_at >= ${today}`,
+        columns: {
+          id: true,
+        },
+      }).then(results => results.length),
 
-      return stats;
-    }),
+      // 待处理订单数
+      ctx.db.query.orders.findMany({
+        where: eq(orders.status, 'paid'),
+        columns: {
+          id: true,
+        },
+      }).then(results => results.length),
 
-  // 账号分配
-  allocateAccount: protectedProcedure
-    .input(z.object({
-      orderId: z.string(),
-      accountId: z.string(),
-      metadata: z.record(z.any()).optional()
-    }))
+      // 本月收入
+      ctx.db.select({
+        total: sql<number>`SUM(amount)`,
+      })
+      .from(orders)
+      .where(and(
+        eq(orders.status, 'completed'),
+        sql`MONTH(created_at) = MONTH(CURRENT_DATE())`,
+        sql`YEAR(created_at) = YEAR(CURRENT_DATE())`
+      ))
+      .then(result => result[0]?.total ?? 0),
+    ]);
+
+    return {
+      today: todayOrders,
+      pending: pendingOrders,
+      monthlyIncome,
+    };
+  }),
+
+  // 处理充值订单
+  processRechargeOrder: protectedProcedure
+    .input(ProcessRechargeSchema)
     .mutation(async ({ ctx, input }) => {
-      const { orderId, accountId, metadata } = input;
+      const { orderId, giftCardCode, remark } = input;
 
-      await ctx.db.transaction(async (tx) => {
-        // 更新订单状态
-        await tx.update(orders)
-          .set({ 
-            orderStatus: 'processing',
-            updatedAt: new Date()
-          })
-          .where(eq(orders.id, orderId));
-
-        // 更新账号订单分配状态
-        await tx.update(accountOrders)
-          .set({
-            accountId,
-            allocationStatus: 'completed'
-          })
-          .where(eq(accountOrders.orderId, orderId));
-
-        // 记录历史
-        await tx.insert(orderHistory).values({
-          orderId,
-          action: 'allocate_account',
-          content: `分配账号: ${accountId}`,
-          operatorId: ctx.session?.user?.id,
-          operatorName: ctx.session?.user?.name,
-          metadata
-        });
-      });
-
-      return { success: true };
-    }),
-
-  // API Key操作
-  resetApiKey: protectedProcedure
-    .input(z.object({
-      orderId: z.string(),
-      newApiKey: z.string(),
-      reason: z.string(),
-      metadata: z.record(z.any()).optional()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { orderId, newApiKey, reason, metadata } = input;
-
-      await ctx.db.transaction(async (tx) => {
-        // 更新API Key
-        await tx.update(apiOrders)
-          .set({ apiKey: newApiKey })
-          .where(eq(apiOrders.orderId, orderId));
-
-        // 记录历史
-        await tx.insert(orderHistory).values({
-          orderId,
-          action: 'reset_api_key',
-          content: `重置API Key - 原因: ${reason}`,
-          operatorId: ctx.session?.user?.id,
-          operatorName: ctx.session?.user?.name,
-          metadata
-        });
-      });
-
-      return { success: true };
-    }),
-
-  // Plus充值处理进度更新
-  updatePlusRechargeProgress: protectedProcedure
-    .input(z.object({
-      orderId: z.string(),
-      status: z.enum(['processing', 'retry_needed', 'completed', 'failed']),
-      failureReason: z.string().optional(),
-      note: z.string().optional(),
-      metadata: z.record(z.any()).optional()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { orderId, status, failureReason, note, metadata } = input;
-
-      await ctx.db.transaction(async (tx) => {
-        // 更新订单状态
-        await tx.update(orders)
-          .set({ 
-            orderStatus: status,
-            updatedAt: new Date()
-          })
-          .where(eq(orders.id, orderId));
-
-        if (status === 'failed' || status === 'retry_needed') {
-          await tx.update(plusRechargeOrders)
-            .set({ 
-              failureReason,
-              retryCount: sql`retry_count + 1`
-            })
-            .where(eq(plusRechargeOrders.orderId, orderId));
-        }
-
-        // 记录历史
-        await tx.insert(orderHistory).values({
-          orderId,
-          action: 'update_progress',
-          content: `充值进度更新 - ${status}${note ? ` - ${note}` : ''}`,
-          operatorId: ctx.session?.user?.id,
-          operatorName: ctx.session?.user?.name,
-          metadata
-        });
-      });
-
-      return { success: true };
-    }),
-
-  // 获取订单历史记录
-  getHistory: protectedProcedure
-    .input(z.object({
-      orderId: z.string()
-    }))
-    .query(async ({ ctx, input }) => {
-      const history = await ctx.db.query.orderHistory.findMany({
-        where: eq(orderHistory.orderId, input.orderId),
-        orderBy: (history, { desc }) => [desc(history.createdAt)],
-      });
-
-      return history;
-    }),
-
-  // 加速器订单续期
-  renewAcceleratorOrder: protectedProcedure
-    .input(z.object({
-      orderId: z.string(),
-      duration: z.string(),
-      metadata: z.record(z.any()).optional()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { orderId, duration, metadata } = input;
-
-      await ctx.db.transaction(async (tx) => {
-        const order = await tx.query.acceleratorOrders.findFirst({
-          where: eq(acceleratorOrders.orderId, orderId)
+      // 开启事务
+      return await ctx.db.transaction(async (tx) => {
+        // 检查订单状态
+        const order = await tx.query.orders.findFirst({
+          where: and(
+            eq(orders.id, orderId),
+            eq(orders.type, 'recharge'),
+          ),
         });
 
-        if (!order) {
+        if (!order || order.status !== 'paid') {
           throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "订单不存在"
+            code: 'BAD_REQUEST',
+            message: '订单状态不正确',
           });
         }
 
-        // 计算新的到期时间
-        const currentExpiry = order.expiresAt ?? new Date();
-        const [amount, unit] = duration.match(/(\d+)([mdy])/).slice(1);
-        const days = unit === 'd' ? parseInt(amount) :
-                    unit === 'm' ? parseInt(amount) * 30 :
-                    parseInt(amount) * 365;
-        
-        const newExpiryDate = new Date(currentExpiry.getTime() + days * 24 * 60 * 60 * 1000);
-
-        // 更新到期时间
-        await tx.update(acceleratorOrders)
-          .set({ 
-            expiresAt: newExpiryDate,
-            duration: sql`CONCAT(duration, '+${duration}')`
+        // 更新订单状态
+        await tx.update(orders)
+          .set({
+            status: 'completed',
+            processedBy: ctx.session.user.id,
+            processedAt: new Date(),
+            remark,
           })
-          .where(eq(acceleratorOrders.orderId, orderId));
+          .where(eq(orders.id, orderId));
 
-        // 记录历史
-        await tx.insert(orderHistory).values({
-          orderId,
-          action: 'renew_order',
-          content: `续期 ${duration} - 新到期时间: ${newExpiryDate.toISOString()}`,
-          operatorId: ctx.session?.user?.id,
-          operatorName: ctx.session?.user?.name,
-          metadata
-        });
+        // 更新充值订单信息
+        await tx.update(rechargeOrders)
+          .set({
+            giftCardCode,
+          })
+          .where(eq(rechargeOrders.orderId, orderId));
+
+        return { success: true };
       });
+    }),
+
+  // 处理美区账号订单
+  processAppleIdOrder: protectedProcedure
+    .input(ProcessAppleIdSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { orderId, email, password, remark } = input;
+
+      return await ctx.db.transaction(async (tx) => {
+        const order = await tx.query.orders.findFirst({
+          where: and(
+            eq(orders.id, orderId),
+            eq(orders.type, 'appleId'),
+          ),
+        });
+
+        if (!order || order.status !== 'paid') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: '订单状态不正确',
+          });
+        }
+
+        await tx.update(orders)
+          .set({
+            status: 'completed',
+            processedBy: ctx.session.user.id,
+            processedAt: new Date(),
+            remark,
+          })
+          .where(eq(orders.id, orderId));
+
+        await tx.update(appleIdOrders)
+          .set({
+            email,
+            password,
+          })
+          .where(eq(appleIdOrders.orderId, orderId));
+
+        return { success: true };
+      });
+    }),
+
+  // 处理加速服务订单
+  processAccelerationOrder: protectedProcedure
+    .input(ProcessAccelerationSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { orderId, configuration, remark } = input;
+
+      return await ctx.db.transaction(async (tx) => {
+        const order = await tx.query.orders.findFirst({
+          where: and(
+            eq(orders.id, orderId),
+            eq(orders.type, 'acceleration'),
+          ),
+        });
+
+        if (!order || order.status !== 'paid') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: '订单状态不正确',
+          });
+        }
+
+        await tx.update(orders)
+          .set({
+            status: 'completed',
+            processedBy: ctx.session.user.id,
+            processedAt: new Date(),
+            remark,
+          })
+          .where(eq(orders.id, orderId));
+
+        await tx.update(accelerationOrders)
+          .set({
+            configuration,
+          })
+          .where(eq(accelerationOrders.orderId, orderId));
+
+        return { success: true };
+      });
+    }),
+
+  // 取消订单
+  cancelOrder: protectedProcedure
+    .input(z.object({
+      orderId: z.string(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { orderId, reason } = input;
+
+      const order = await ctx.db.query.orders.findFirst({
+        where: eq(orders.id, orderId),
+      });
+
+      if (!order || !['pending_payment', 'paid'].includes(order.status)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '订单无法取消',
+        });
+      }
+
+      await ctx.db.update(orders)
+        .set({
+          status: 'cancelled',
+          remark: reason,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, orderId));
 
       return { success: true };
     }),

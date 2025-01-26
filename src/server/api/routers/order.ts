@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
-import { orders, rechargeOrders, appleIdOrders, accelerationOrders } from "~/server/db/schema";
+import { orders, rechargeOrders, appleIdOrders, accelerationOrders,  appleAccounts, configs } from "~/server/db/schema";
 
 // 输入验证Schema
 const OrderStatusSchema = z.enum([
@@ -14,6 +14,17 @@ const OrderStatusSchema = z.enum([
   'cancelled',
   'refunded'
 ]);
+
+const createOrderSchema = z.object({
+  type: z.enum(['acceleration', 'appleId', 'recharge']),
+  amount: z.number(),
+  // 加速服务特定字段
+  plan: z.enum(['monthly', 'quarterly', 'yearly']).optional(),
+  // 充值服务特定字段
+  usdAmount: z.number().optional(),
+  exchangeRate: z.number().optional(),
+  appliedAccount: z.string().optional(),
+});
 
 const OrderTypeSchema = z.enum(['recharge', 'appleId', 'acceleration']);
 
@@ -104,30 +115,200 @@ export const orderRouter = createTRPCRouter({
       };
     }),
 
+  
+
   // 获取订单详情
-  getOrderDetail: protectedProcedure
-    .input(z.object({ orderId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      const order = await ctx.db.query.orders.findFirst({
-        where: eq(orders.id, input.orderId),
-        with: {
-          user: true,
-          rechargeOrder: true,
-          appleIdOrder: true,
-          accelerationOrder: true,
-        },
+  getDetails: protectedProcedure
+  .input(z.object({ orderId: z.string() }))
+  .query(async ({ ctx, input }) => {
+    const order = await ctx.db.query.orders.findFirst({
+      where: eq(orders.id, input.orderId),
+      with: {
+        user: true,
+        rechargeOrder: true,
+        appleIdOrder: true,
+        accelerationOrder: true,
+      },
+    });
+
+    if (!order) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "订单不存在",
       });
+    }
 
-      if (!order) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: '订单不存在',
-        });
-      }
+    // Verify order belongs to current user
+    if (order.userId !== ctx.session.user.id && ctx.session.user.role !== 'admin') {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "无权访问此订单",
+      });
+    }
 
-      return order;
-    }),
+    // Format product information based on order type
+    let product = {
+      name: '',
+      description: ''
+    };
 
+    switch (order.type) {
+      case 'acceleration':
+        const plan = order.accelerationOrder?.plan;
+        product.name = `加速服务-${
+          plan === 'monthly' ? '月付' :
+          plan === 'quarterly' ? '季付' : '年付'
+        }套餐`;
+        product.description = `${
+          plan === 'monthly' ? '1个月' :
+          plan === 'quarterly' ? '3个月' : '12个月'
+        }加速服务`;
+        break;
+
+      case 'appleId':
+        product.name = '美区账号';
+        product.description = '独立账号，永久使用';
+        break;
+
+      case 'recharge':
+        if (order.rechargeOrder) {
+          product.name = '充值服务';
+          product.description = `${order.rechargeOrder.usdAmount}美元充值`;
+        }
+        break;
+    }
+
+    return {
+      ...order,
+      product,
+    };
+  }),
+
+// Update order status
+updateStatus: protectedProcedure
+  .input(z.object({
+    orderId: z.string(),
+    status: z.enum([
+      'pending_payment',
+      'paid',
+      'processing',
+      'completed',
+      'failed',
+      'cancelled',
+      'refunded'
+    ]),
+    remark: z.string().optional(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const { orderId, status, remark } = input;
+
+    // Get current order
+    const order = await ctx.db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+    });
+
+    if (!order) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "订单不存在",
+      });
+    }
+
+    // Verify order belongs to current user or user is admin
+    if (order.userId !== ctx.session.user.id && ctx.session.user.role !== 'admin') {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "无权操作此订单",
+      });
+    }
+
+    // Validate status transition
+    const validTransitions: Record<string, string[]> = {
+      'pending_payment': ['paid', 'cancelled'],
+      'paid': ['processing', 'failed', 'refunded'],
+      'processing': ['completed', 'failed'],
+      'completed': ['refunded'],
+      'failed': ['processing'],
+      'cancelled': [],
+      'refunded': [],
+    };
+
+    if (!validTransitions[order.status]?.includes(status)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "无效的状态变更",
+      });
+    }
+
+    // Update order status
+    await ctx.db.update(orders)
+      .set({
+        status,
+        remark: remark || order.remark,
+        updatedAt: new Date(),
+        ...(status === 'paid' ? {
+          processedAt: new Date(),
+          processedBy: ctx.session.user.id,
+        } : {}),
+      })
+      .where(eq(orders.id, orderId));
+
+    return {
+      success: true,
+      message: "订单状态更新成功",
+    };
+  }),
+  
+// Cancel order
+cancelOrder: protectedProcedure
+  .input(z.object({
+    orderId: z.string(),
+    reason: z.string().optional(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const { orderId, reason } = input;
+
+    const order = await ctx.db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+    });
+
+    if (!order) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "订单不存在",
+      });
+    }
+
+    // Verify order belongs to current user or user is admin
+    if (order.userId !== ctx.session.user.id && ctx.session.user.role !== 'admin') {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "无权取消此订单",
+      });
+    }
+
+    // Check if order can be cancelled
+    if (!['pending_payment', 'paid'].includes(order.status)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "当前订单状态无法取消",
+      });
+    }
+
+    // Update order status
+    await ctx.db.update(orders)
+      .set({
+        status: 'cancelled',
+        remark: reason || order.remark,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId));
+
+    return {
+      success: true,
+      message: "订单取消成功",
+    };
+  }),
   // 获取订单统计
   getOrderStats: protectedProcedure.query(async ({ ctx }) => {
     const today = new Date();
@@ -296,33 +477,78 @@ export const orderRouter = createTRPCRouter({
     }),
 
   // 取消订单
-  cancelOrder: protectedProcedure
-    .input(z.object({
-      orderId: z.string(),
-      reason: z.string().optional(),
-    }))
+  // cancelOrder: protectedProcedure
+  //   .input(z.object({
+  //     orderId: z.string(),
+  //     reason: z.string().optional(),
+  //   }))
+  //   .mutation(async ({ ctx, input }) => {
+  //     const { orderId, reason } = input;
+
+  //     const order = await ctx.db.query.orders.findFirst({
+  //       where: eq(orders.id, orderId),
+  //     });
+
+  //     if (!order || !['pending_payment', 'paid'].includes(order.status)) {
+  //       throw new TRPCError({
+  //         code: 'BAD_REQUEST',
+  //         message: '订单无法取消',
+  //       });
+  //     }
+
+  //     await ctx.db.update(orders)
+  //       .set({
+  //         status: 'cancelled',
+  //         remark: reason,
+  //         updatedAt: new Date(),
+  //       })
+  //       .where(eq(orders.id, orderId));
+
+  //     return { success: true };
+  //   }),
+
+    createOrder: protectedProcedure
+    .input(createOrderSchema)
     .mutation(async ({ ctx, input }) => {
-      const { orderId, reason } = input;
-
-      const order = await ctx.db.query.orders.findFirst({
-        where: eq(orders.id, orderId),
-      });
-
-      if (!order || !['pending_payment', 'paid'].includes(order.status)) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: '订单无法取消',
+      // 直接创建订单，使用传入的金额
+      const orderId = 'ORD' + new Date().getTime().toString();
+      
+      await ctx.db.transaction(async (tx) => {
+        await tx.insert(orders).values({
+          id: orderId,
+          type: input.type,
+          userId: ctx.session.user.id,
+          amount: input.amount,
+          status: 'pending_payment',
         });
-      }
-
-      await ctx.db.update(orders)
-        .set({
-          status: 'cancelled',
-          remark: reason,
-          updatedAt: new Date(),
-        })
-        .where(eq(orders.id, orderId));
-
-      return { success: true };
+  
+        switch (input.type) {
+          case 'acceleration':
+            await tx.insert(accelerationOrders).values({
+              orderId,
+              plan: input.plan!,
+            });
+            break;
+          
+          case 'appleId':
+            await tx.insert(appleIdOrders).values({
+              orderId,
+            });
+            break;
+          
+          case 'recharge':
+            await tx.insert(rechargeOrders).values({
+              orderId,
+              usdAmount: input.usdAmount!,
+              exchangeRate: input.exchangeRate!,
+              appliedAccount: input.appliedAccount!,
+            });
+            break;
+        }
+      });
+  
+      return { orderId };
     }),
+
+    
 });

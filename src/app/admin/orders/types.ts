@@ -71,5 +71,5 @@ export interface OrderStats {
   today: number;
   pending: number;
   monthlyIncome: number;
-  completionRate: number;
+  // completionRate: number;
 }

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { wechatPay } from '@/lib/wechatpay';
-
+import { eq } from 'drizzle-orm';
+import { paymentRecords } from '@/server/db/schema';
+import { db } from '@/server/db';
+import crypto from 'crypto';
 export async function POST(request: Request) {
   try {
     const { orderId, amount, description } = await request.json();
@@ -13,10 +16,21 @@ export async function POST(request: Request) {
       );
     }
 
+    const paymentNo = "PAY" + Date.now().toString();
+
+    await db.insert(paymentRecords).values({
+      id: crypto.randomUUID(),
+      orderId,
+      paymentNo,
+      amount:amount/100,
+      status: 'pending',
+      paymentMethod: 'wechat',
+    });
+
     const result = await wechatPay.unifiedOrder({
-      outTradeNo: orderId,
+      outTradeNo: paymentNo,
       body: description,
-      totalFee: Math.floor(amount * 100), // 转换为分
+      totalFee: amount, // 转换为分
       spbillCreateIp: '127.0.0.1',
     });
 

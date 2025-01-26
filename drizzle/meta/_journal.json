@@ -2,6 +2,12 @@
   "version": "0",
   "dialect": "mysql",
   "entries": [
-
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1737860638116,
+      "tag": "0000_jazzy_mariko_yashida",
+      "breakpoints": true
+    }
   ]
 }

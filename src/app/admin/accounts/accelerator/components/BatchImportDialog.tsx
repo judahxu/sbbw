@@ -1,7 +1,7 @@
 // src/app/admin/server-accounts/components/BatchImportDialog.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,19 +10,35 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Upload, FileText, AlertCircle } from 'lucide-react';
+import { Upload, FileText, AlertCircle, X ,RotateCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import Papa from 'papaparse';
 
 interface BatchImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSubmit: (accounts: Array<{ name: string; config: string }>) => void;
 }
 
-export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [previewData, setPreviewData] = useState<any[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+interface PreviewData {
+  name: string;
+  config: string;
+  [key: string]: string;
+}
 
+export function BatchImportDialog({
+  open,
+  onOpenChange,
+  onSubmit
+}: BatchImportDialogProps) {
+  // 状态管理
+  const [file, setFile] = useState<File | null>(null);
+  const [previewData, setPreviewData] = useState<PreviewData[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 文件处理
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
@@ -42,18 +58,31 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
       try {
         const text = e.target?.result as string;
         
-        // 使用 Papa Parse 解析 CSV
-        const result = await new Promise((resolve, reject) => {
-          Papa.parse(text, {
-            header: true,
-            skipEmptyLines: true,
-            complete: resolve,
-            error: reject
-          });
-        });
+        // 解析 CSV
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            // 验证数据格式
+            const data = results.data as PreviewData[];
+            if (!data.length) {
+              setError('文件内容为空');
+              return;
+            }
 
-        // 预览前10条数据
-        setPreviewData((result as any).data.slice(0, 10));
+            // 验证必要字段
+            if (!data[0].hasOwnProperty('name') || !data[0].hasOwnProperty('config')) {
+              setError('CSV 文件必须包含 name 和 config 列');
+              return;
+            }
+
+            // 预览前10条数据
+            setPreviewData(data.slice(0, 10));
+          },
+          error: (error) => {
+            setError(`解析文件失败: ${error.message}`);
+          }
+        });
       } catch (error) {
         setError('解析文件失败');
         console.error('File parsing error:', error);
@@ -63,31 +92,59 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
     reader.readAsText(selectedFile);
   };
 
-  const handleImport = async () => {
-    if (!file) return;
+  // 提交处理
+  const handleSubmit = async () => {
+    if (!file || !previewData) return;
 
+    setIsSubmitting(true);
     try {
-      // TODO: 调用 API 处理导入
-      // const formData = new FormData();
-      // formData.append('file', file);
-      // const response = await fetch('/api/server-accounts/batch-import', {
-      //   method: 'POST',
-      //   body: formData
-      // });
+      const text = await file.text();
+      const results = await new Promise<Papa.ParseResult<PreviewData>>((resolve, reject) => {
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: resolve,
+          error: reject
+        });
+      });
 
-      // 假设导入成功
-      onOpenChange(false);
+      // 转换数据格式
+      const accounts = results.data.map(row => ({
+        name: row.name,
+        config: row.config
+      }));
+
+      await onSubmit(accounts);
+      
+      // 重置状态
       setFile(null);
       setPreviewData(null);
-      setError(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      onOpenChange(false);
     } catch (error) {
-      setError('导入失败，请重试');
-      console.error('Import error:', error);
+      setError(error instanceof Error ? error.message : '导入失败，请重试');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  // 关闭对话框时重置状态
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setFile(null);
+      setPreviewData(null);
+      setError(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+    onOpenChange(open);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>批量导入加速器账号</DialogTitle>
@@ -108,13 +165,31 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
                   className="hidden"
                   accept=".csv"
                   onChange={handleFileChange}
+                  ref={fileInputRef}
+                  disabled={isSubmitting}
                 />
               </label>
             </div>
             {file && (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <FileText className="h-4 w-4" />
-                <span>{file.name}</span>
+              <div className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  <span>{file.name}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setFile(null);
+                    setPreviewData(null);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                    }
+                  }}
+                  disabled={isSubmitting}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             )}
           </div>
@@ -135,21 +210,15 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      {Object.keys(previewData[0]).map((key) => (
-                        <th key={key} className="px-4 py-2 text-left">
-                          {key}
-                        </th>
-                      ))}
+                      <th className="px-4 py-2 text-left">名称</th>
+                      <th className="px-4 py-2 text-left">配置</th>
                     </tr>
                   </thead>
                   <tbody>
                     {previewData.map((row, index) => (
                       <tr key={index} className="border-t">
-                        {Object.values(row).map((value: any, i) => (
-                          <td key={i} className="px-4 py-2">
-                            {value}
-                          </td>
-                        ))}
+                        <td className="px-4 py-2">{row.name}</td>
+                        <td className="px-4 py-2 font-mono">{row.config}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -163,20 +232,19 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                onOpenChange(false);
-                setFile(null);
-                setPreviewData(null);
-                setError(null);
-              }}
+              onClick={() => handleOpenChange(false)}
+              disabled={isSubmitting}
             >
               取消
             </Button>
             <Button
               type="button"
-              disabled={!file || !!error}
-              onClick={handleImport}
+              disabled={!file || !!error || isSubmitting}
+              onClick={handleSubmit}
             >
+              {isSubmitting && (
+                <RotateCw className="mr-2 h-4 w-4 animate-spin" />
+              )}
               确认导入
             </Button>
           </div>
@@ -184,3 +252,4 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
       </DialogContent>
     </Dialog>
   );
+}

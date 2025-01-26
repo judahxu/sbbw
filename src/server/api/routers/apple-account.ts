@@ -2,11 +2,11 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { and, eq, like, sql } from "drizzle-orm";
+import { and, eq, like, sql, desc } from "drizzle-orm";
 import { appleAccounts } from "~/server/db/schema";
 
 // 状态枚举
-const AccountStatus = z.enum(["available", "sold", "abnormal"]);
+const AccountStatus = z.enum(["available", "sold", "abnormal", "all"]);
 
 // 分页参数验证
 const paginationSchema = z.object({
@@ -49,7 +49,6 @@ export const appleAccountRouter = createTRPCRouter({
         .from(appleAccounts)
         .where(whereClause);
       const totalCount = totalCountQuery[0].count;
-
       // 获取分页数据
       const accounts = await ctx.db
         .select()
@@ -57,7 +56,8 @@ export const appleAccountRouter = createTRPCRouter({
         .where(whereClause)
         .limit(pageSize)
         .offset(offset)
-        .orderBy(appleAccounts.createdAt.desc());
+        .orderBy(desc(appleAccounts.createdAt)); // 修改此处
+        // console.log(accounts,totalCount);
 
       return {
         accounts,
@@ -177,7 +177,7 @@ export const appleAccountRouter = createTRPCRouter({
           abnormal: sql<number>`sum(case when status = 'abnormal' then 1 else 0 end)`,
         })
         .from(appleAccounts);
-
+        console.log(stats);
       return stats[0];
     }),
 });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { and, eq, like, sql } from "drizzle-orm";
+import { and, eq, like, sql, desc } from "drizzle-orm";
 import { serverAccounts } from "@/server/db/schema";
 
 // 验证规则
@@ -51,7 +51,7 @@ export const serverAccountRouter = createTRPCRouter({
           .select()
           .from(serverAccounts)
           .where(and(...conditions))
-          .orderBy(serverAccounts.createdAt.desc())
+          .orderBy(desc(serverAccounts.createdAt))
           .limit(pageSize)
           .offset(offset),
         ctx.db

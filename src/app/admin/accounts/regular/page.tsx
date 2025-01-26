@@ -1,7 +1,7 @@
 // src/app/admin/accounts/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AccountImport } from './components/account-import';
 import {
   Table,
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Upload, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Upload, ChevronLeft, ChevronRight,Loader2 } from "lucide-react";
 import {
   Pagination,
   PaginationContent,
@@ -40,7 +40,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-
+import { api } from "~/trpc/react";
+import { toast } from "sonner";
 // 账号状态类型
 export enum AccountStatus {
   AVAILABLE = 'available',
@@ -192,7 +193,8 @@ interface PaginationState {
 }
 
 export default function AccountsPage() {
-  const [accounts, setAccounts] = useState<Account[]>([]); // 实际应用中通过API获取
+  const [emailFilter, setEmailFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [pagination, setPagination] = useState<PaginationState>({
     pageSize: 10,
     currentPage: 1,
@@ -202,50 +204,90 @@ export default function AccountsPage() {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
-  // 统计数据
-  const stats = {
-    total: accounts.length,
-    available: accounts.filter(a => a.status === AccountStatus.AVAILABLE).length,
-    sold: accounts.filter(a => a.status === AccountStatus.SOLD).length,
-    abnormal: accounts.filter(a => a.status === AccountStatus.ABNORMAL).length
+  const { data, isLoading, refetch } = api.appleAccount.getAccounts.useQuery({
+    pageSize: pagination.pageSize,
+    currentPage: pagination.currentPage,
+    email: emailFilter || undefined,
+    status: statusFilter === 'all' ? undefined : statusFilter as any,
+  });
+
+  useEffect(() => {
+    if (data) {
+      setPagination(prev => ({ ...prev, totalCount: data.totalCount }));
+    }
+  }, [data]);
+
+
+  const handleSearch = (email: string) => {
+    setEmailFilter(email);
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
+  const handleStatusChange = (status: string) => {
+    setStatusFilter(status);
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+  };
+
+  // 统计数据
+  const { data: statsData } = api.appleAccount.getStats.useQuery(undefined);
+
+  // For creating account
+  const { mutate: createAccount } = api.appleAccount.createAccount.useMutation({
+    onSuccess: () => {
+      toast.success('账号创建成功');
+      refetch();
+      setIsAddDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    }
+  });
+
+  // For updating account
+  const { mutate: updateAccount } = api.appleAccount.updateAccount.useMutation({
+    onSuccess: () => {
+      toast.success('账号更新成功');
+      refetch();
+      setSelectedAccount(null);
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    }
+  });
+
+  // For batch importing
+  const { mutate: batchImport } = api.appleAccount.batchImport.useMutation({
+    onSuccess: () => {
+      toast.success('账号导入成功');
+      refetch();
+      setIsImportDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error(`导入失败: ${error.message}`);
+    }
+  });
+
   const handleAddAccount = (data: Omit<Account, 'id' | 'createdAt'>) => {
-    // 实际应用中通过API创建
-    const newAccount: Account = {
-      id: Date.now().toString(),
-      createdAt: new Date(),
-      ...data
-    };
-    setAccounts([...accounts, newAccount]);
-    setPagination(prev => ({
-      ...prev,
-      totalCount: prev.totalCount + 1
-    }));
-    setIsAddDialogOpen(false);
+    createAccount(data);
   };
 
   const handleEditAccount = (data: Omit<Account, 'id' | 'createdAt'>) => {
     if (!selectedAccount) return;
     
-    // 实际应用中通过API更新
-    const updatedAccounts = accounts.map(account =>
-      account.id === selectedAccount.id
-        ? { ...account, ...data }
-        : account
-    );
-    setAccounts(updatedAccounts);
-    setSelectedAccount(null);
+    updateAccount({
+      id: selectedAccount.id,
+      data
+    });
   };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* 统计卡片 */}
       <div className="grid grid-cols-4 gap-4">
-        <StatsCard title="账号总数" value={stats.total} />
-        <StatsCard title="可用账号" value={stats.available} />
-        <StatsCard title="已售账号" value={stats.sold} />
-        <StatsCard title="异常账号" value={stats.abnormal} />
+        <StatsCard title="账号总数" value={statsData?.total || 0} />
+        <StatsCard title="可用账号" value={statsData?.available || 0} />
+        <StatsCard title="已售账号" value={statsData?.sold || 0} />
+        <StatsCard title="异常账号" value={statsData?.abnormal || 0} />
       </div>
 
       {/* 操作栏 */}
@@ -275,33 +317,31 @@ export default function AccountsPage() {
             </DialogTrigger>
             <AccountImport
               onImport={(importedAccounts) => {
-                const newAccounts = importedAccounts.map(data => ({
-                  id: Date.now().toString(),
-                  createdAt: new Date(),
-                  ...data
-                }));
-                setAccounts([...accounts, ...newAccounts]);
-                setIsImportDialogOpen(false);
+                batchImport(importedAccounts);
               }}
               onClose={() => setIsImportDialogOpen(false)}
             />
           </Dialog>
         </div>
 
-        {/* <div className="flex gap-2">
-          <Input placeholder="搜索邮箱..." className="w-64" />
-          <Select>
+        <div className="flex gap-2">
+          <Input 
+            placeholder="搜索邮箱..." 
+            value={emailFilter}
+            onChange={(e) => handleSearch(e.target.value)}
+          />
+          <Select value={statusFilter} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-32">
               <SelectValue placeholder="状态" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">全部</SelectItem>
-              <SelectItem value={AccountStatus.AVAILABLE}>可售</SelectItem>
-              <SelectItem value={AccountStatus.SOLD}>已售</SelectItem>
-              <SelectItem value={AccountStatus.ABNORMAL}>异常</SelectItem>
+              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="available">可售</SelectItem>
+              <SelectItem value="sold">已售</SelectItem>
+              <SelectItem value="abnormal">异常</SelectItem>
             </SelectContent>
           </Select>
-        </div> */}
+        </div>
       </div>
 
       {/* 账号列表 */}
@@ -320,7 +360,20 @@ export default function AccountsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {accounts
+          {isLoading ? (
+            <TableRow>
+              <TableCell colSpan={8} className="text-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+              </TableCell>
+            </TableRow>
+          ) : data?.accounts?.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                暂无数据
+              </TableCell>
+            </TableRow>
+          ) : (
+            data?.accounts
               .slice(
                 (pagination.currentPage - 1) * pagination.pageSize,
                 pagination.currentPage * pagination.pageSize
@@ -346,7 +399,8 @@ export default function AccountsPage() {
                   </Button>
                 </TableCell>
               </TableRow>
-            ))}
+            ))
+          )}
           </TableBody>
         </Table>
 

@@ -45,9 +45,8 @@ export const users = createTable("user", {
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   sessions: many(sessions),
-  // serviceAccounts: many(serviceAccounts), 
-  // apiKeys: many(apiKeys),
-  // acceleratorServices: many(acceleratorServices),
+  orders: many(orders),
+  processedOrders: many(orders, { relationName: "processedByUser" }),
 }));
 
 export const accounts = createTable(
@@ -400,4 +399,53 @@ export const accelerationOrders = createTable("acceleration_order", {
     mode: "date",
     fsp: 3,
   }),
+});
+
+// Relations
+export const ordersRelations = relations(orders, ({ one,many }) => ({
+  user: one(users, {
+    fields: [orders.userId],
+    references: [users.id],
+  }),
+  processedByUser: one(users, {
+    fields: [orders.processedBy],
+    references: [users.id],
+  }),
+  rechargeOrder: one(rechargeOrders, {
+    fields: [orders.id],
+    references: [rechargeOrders.orderId],
+  }),
+  appleIdOrder: one(appleIdOrders, {
+    fields: [orders.id],
+    references: [appleIdOrders.orderId],
+  }),
+  accelerationOrder: one(accelerationOrders, {
+    fields: [orders.id],
+    references: [accelerationOrders.orderId],
+  }),
+  payments: many(paymentRecords),
+}));
+
+
+export const paymentRecords = createTable("payment_record", {
+  id: varchar("id", { length: 255 }).notNull().primaryKey(),
+  orderId: varchar("order_id", { length: 255 })
+    .notNull()
+    .references(() => orders.id),
+  paymentNo: varchar("payment_no", { length: 32 })
+    .notNull()
+    .unique(),
+  amount: decimal("amount", { precision: 10, scale: 2 })
+    .notNull(),
+  status: varchar("status", { length: 20 })
+    .notNull()
+    .default("pending"),
+  paymentMethod: varchar("payment_method", { length: 20 })
+    .notNull(),
+  createdAt: timestamp("created_at")
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  paidAt: timestamp("paid_at"),
+  refundedAt: timestamp("refunded_at"),
+  transactionId: varchar("transaction_id", { length: 64 }),
 });

@@ -1,6 +1,6 @@
 // src/components/orders/StatsOverview.tsx
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { OrderStats } from '@/types/orders';
+import { OrderStats } from '../types';
 
 interface StatsOverviewProps {
   stats: OrderStats;
@@ -49,7 +49,7 @@ export function StatsOverview({ stats }: StatsOverviewProps) {
         </CardContent>
       </Card>
 
-      <Card>
+      {/* <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
             订单完成率
@@ -61,7 +61,7 @@ export function StatsOverview({ stats }: StatsOverviewProps) {
           </div>
           <p className="text-xs text-muted-foreground">7天平均</p>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 }

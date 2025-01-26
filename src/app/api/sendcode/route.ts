@@ -11,26 +11,26 @@ export async function POST(req: Request) {
     const { email, type } = await req.json();
 
     // 检查用户是否存在
-    // const user = await db.query.users.findFirst({
-    //   where: (users, { eq }) => eq(users.email, email),
-    // });
+    const user = await db.query.users.findFirst({
+      where: (users, { eq }) => eq(users.email, email),
+    });
 
-    // if (type === 'register') {
-    //   if (user) {
-    //     return NextResponse.json(
-    //       { error: 'Email is already registered' },
-    //       { status: 400 }
-    //     );
-    //   }
-    // } else {
-    //   // 其他场景（如重置密码）：用户必须存在
-    //   if (!user) {
-    //     return NextResponse.json(
-    //       { error: 'User not found' },
-    //       { status: 404 }
-    //     );
-    //   }
-    // }
+    if (type === 'register') {
+      if (user) {
+        return NextResponse.json(
+          { error: 'Email is already registered' },
+          { status: 400 }
+        );
+      }
+    } else {
+      // 其他场景（如重置密码）：用户必须存在
+      if (!user) {
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        );
+      }
+    }
 
     // 生成验证码
     const code = generateVerificationCode();

@@ -10,7 +10,9 @@ interface ExchangeRateResponse {
 }
 
 export async function fetchExchangeRate(): Promise<ExchangeRateResponse> {
+  // 5fb14c87bdbef2c22ed1cb8b  //API key
   try {
+    // https://v6.exchangerate-api.com/v6/5fb14c87bdbef2c22ed1cb8b/latest/USD
     // 使用 ExchangeRate-API 的免费API (你需要注册获取API key)
     const response = await fetch(
       `https://api.exchangerate-api.com/v4/latest/USD`

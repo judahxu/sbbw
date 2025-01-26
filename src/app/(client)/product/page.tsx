@@ -8,89 +8,12 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, HelpCircle, Info  } from 'lucide-react';
 import { PricingTiers, RechargeCalculator } from './components/PricingTiers';
 import { Badge } from '@/components/ui/badge';
+import { useRouter } from "next/navigation";
+import { api } from "~/trpc/react";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 
-const accelerationTiers = [
-  {
-    period: '月付',
-    price: 39,
-    unit: '月',
-    originalPrice: 49
-  },
-  {
-    period: '季付',
-    price: 99,
-    unit: '季度',
-    originalPrice: 147,
-    recommended: true
-  },
-  {
-    period: '年付',
-    price: 328,
-    unit: '年',
-    originalPrice: 588
-  }
-];
 
-const exchangeRate = 7.2; // 示例汇率，实际应该从API获取
-const serviceFee = 5; // 5%服务费
-
-// 在 ProductPage 组件中更新服务卡片内容
-const services = [
-  {
-    title: '加速服务',
-    description: '提供可靠、不间断的加速服务，让您高速、稳定地访问国外网站',
-    features: [
-      '全球节点分布，智能优化线路',
-      '支持各类设备，简单易用',
-      '24/7 技术支持服务'
-    ],
-    hasPricingTiers: true,
-    documentation: '/docs/vpn-guide',
-    relatedServices: [
-      {
-        title: '美区账号',
-        description: '配合使用，轻松访问 App Store 美区'
-      }
-    ]
-  },
-  {
-    title: '美区账号',
-    description: '提供独立 App Store 美区账号，永久使用，安全可靠',
-    features: [
-      '正规渠道注册，安全可靠',
-      '独立账号，永久使用',
-      '完整的使用教程支持'
-    ],
-    price: {
-      amount: 99,
-      unit: '个'
-    },
-    documentation: '/docs/appstore-guide',
-    relatedServices: [
-      {
-        title: '充值服务',
-        description: '配合使用，轻松完成应用内购买'
-      }
-    ]
-  },
-  {
-    title: '充值服务',
-    description: '提供 App Store 礼品卡充值服务，支持各种支付方式',
-    features: [
-      '支持支付宝、微信等支付方式',
-      '最低充值金额：20美金',
-      '专业客服指导完成充值'
-    ],
-    hasCalculator: true,
-    documentation: '/docs/recharge-guide',
-    relatedServices: [
-      {
-        title: '美区账号',
-        description: '需要美区账号才能使用充值服务'
-      }
-    ]
-  }
-];
 // 服务流程图组件
 function ServiceFlow() {
   return (
@@ -150,6 +73,8 @@ function ServiceFlow() {
 
 // 新手引导组件
 function BeginnerGuide() {
+  const router = useRouter();
+  
   return (
     <div className="bg-blue-50 p-6 rounded-lg mb-12">
       <div className="flex items-center gap-2 mb-4">
@@ -178,7 +103,7 @@ function BeginnerGuide() {
             <p className="text-gray-600">每个服务都配有详细教程，遇到问题可以随时联系客服。</p>
           </div>
         </div>
-        <Button variant="outline" className="mt-4">
+        <Button variant="outline" className="mt-4" onClick={() => router.push('/docs/guide')}>
           查看详细新手指南
         </Button>
       </div>
@@ -187,8 +112,181 @@ function BeginnerGuide() {
 }
 
 export default function ProductPage() {
-  const [selectedTier, setSelectedTier] = React.useState(accelerationTiers[1]); // 默认选择季付
+  const [selectedTier, setSelectedTier] = React.useState<any>({
+    period: '季付',
+    price: 99,
+    unit: '季度',
+    originalPrice: 147,
+    recommended: true
+  });
+  const router = useRouter();
+   // 获取所有配置
+   const { data: configs, isLoading } = api.config.getAll.useQuery(undefined, {
+    // 保持数据新鲜度
+    refetchInterval: 5 * 60 * 1000, // 5分钟刷新一次
+  });
+  
+  // 从配置中提取所需数据
+  const accelerationConfigs = React.useMemo(() => 
+    configs?.filter(config => config.type === 'acceleration') ?? [], 
+    [configs]
+  );
+  
+  const exchangeRate = React.useMemo(() => 
+    configs?.find(config => config.type === 'exchange_rate')?.exchange_rate ?? 7.2,
+    [configs]
+  );
+  
+  const serviceFee = React.useMemo(() => 
+    configs?.find(config => config.type === 'service_fee')?.fee_percentage ?? 5,
+    [configs]
+  );
+  
+  // 处理加载状态
+  // React.useEffect(() => {
+  //   if (configs && accelerationConfigs.length > 0) {
+  //     // 默认选择季付套餐
+  //     const quarterlyTier = accelerationConfigs.find(c => c.cycle === 'quarterly');
+  //     setSelectedTier(quarterlyTier ?? accelerationConfigs[0]);
+  //   }
+  // }, [configs, accelerationConfigs]);
 
+  React.useEffect(() => {
+    if (configs) {
+      const accelerationConfigs = configs.filter(config => config.type === 'acceleration');
+      const quarterlyConfig = accelerationConfigs.find(c => c.cycle === 'quarterly');
+      
+      if (quarterlyConfig) {
+        setSelectedTier({
+          period: '季付',
+          price: Number(quarterlyConfig.current_price),
+          unit: '季度',
+          originalPrice: Number(quarterlyConfig.original_price),
+          recommended: true
+        });
+      }
+    }
+  }, [configs]);
+  
+  // 更新服务数据结构
+  const services = React.useMemo(() => [
+    {
+      title: '加速服务',
+      description: '提供可靠、不间断的加速服务，让您高速、稳定地访问国外网站',
+      features: [
+        '全球节点分布，智能优化线路',
+        '支持各类设备，简单易用',
+        '24/7 技术支持服务'
+      ],
+      hasPricingTiers: true,
+      documentation: '/docs/vpn-guide',
+      relatedServices: [
+        {
+          title: '美区账号',
+          description: '配合使用，轻松访问 App Store 美区'
+        }
+      ]
+    },
+    {
+      title: '美区账号',
+      description: '提供独立 App Store 美区账号，永久使用，安全可靠',
+      features: [
+        '正规渠道注册，安全可靠',
+        '独立账号，永久使用',
+        '完整的使用教程支持'
+      ],
+      price: {
+        amount: configs?.find(c => c.type === 'appstore')?.current_price ?? 99,
+        unit: '个'
+      },
+      documentation: '/docs/appstore-guide',
+      relatedServices: [
+        {
+          title: '充值服务',
+          description: '配合使用，轻松完成应用内购买'
+        }
+      ]
+    },
+    {
+      title: '充值服务',
+      description: '提供 App Store 礼品卡充值服务，支持各种支付方式',
+      features: [
+        '支持支付宝、微信等支付方式',
+        '最低充值金额：20美金',
+        '专业客服指导完成充值'
+      ],
+      hasCalculator: true,
+      documentation: '/docs/recharge-guide',
+      relatedServices: [
+        {
+          title: '美区账号',
+          description: '需要美区账号才能使用充值服务'
+        }
+      ]
+    }
+  ], [configs]);
+
+  const { data: session } = useSession();
+  const [rechargeCalculation, setRechargeCalculation] = React.useState<{
+    usdAmount: number;
+    baseAmount: number;
+    feeAmount: number;
+    total: number;
+  }>();
+  
+  // 创建订单mutation
+  const { mutate: createOrder, isLoading: isCreatingOrder } = api.order.createOrder.useMutation({
+    onSuccess: ({ orderId }) => {
+      router.push(`/buy?id=${orderId}`);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    }
+  });
+
+  // 处理购买
+  const handlePurchase = (service: typeof services[0]) => {
+    if (!session) {
+      // 未登录时重定向到登录页面
+      router.push(`/login?redirect=${encodeURIComponent(router.asPath)}`);
+      return;
+    }
+
+    switch (service.title) {
+      case '加速服务':
+        if (!selectedTier) return;
+        createOrder({
+          type: 'acceleration',
+          plan: selectedTier.cycle,
+          amount: selectedTier.price
+        });
+        break;
+
+      case '美区账号':
+        createOrder({
+          type: 'appleId',
+          amount: service.price.amount
+        });
+        break;
+
+      case '充值服务':
+        if (!rechargeCalculation) return;
+        createOrder({
+          type: 'recharge',
+          amount: rechargeCalculation.total,
+          usdAmount: rechargeCalculation.usdAmount,
+          exchangeRate: exchangeRate,
+        });
+        break;
+    }
+  };
+
+
+    // 如果还在加载配置，显示加载状态
+    if (isLoading) {
+      return <div>Loading...</div>; // 这里可以使用更好的加载UI组件
+    }
+    console.log(configs);
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow container mx-auto px-4 py-8">
@@ -224,7 +322,15 @@ export default function ProductPage() {
                     
                     {service.hasPricingTiers && (
                       <PricingTiers
-                        tiers={accelerationTiers}
+                        tiers={accelerationConfigs.map(config => ({
+                          period: config.cycle === 'monthly' ? '月付' : 
+                                 config.cycle === 'quarterly' ? '季付' : '年付',
+                          price: Number(config.current_price),
+                          unit: config.cycle === 'monthly' ? '月' : 
+                                config.cycle === 'quarterly' ? '季度' : '年',
+                          originalPrice: Number(config.original_price),
+                          recommended: config.cycle === 'quarterly'
+                        }))}
                         selectedTier={selectedTier}
                         onSelect={setSelectedTier}
                       />
@@ -232,8 +338,8 @@ export default function ProductPage() {
 
                     {service.hasCalculator && (
                       <RechargeCalculator
-                        exchangeRate={exchangeRate}
-                        serviceFee={serviceFee}
+                        exchangeRate={Number(exchangeRate)}
+                        serviceFee={Number(serviceFee)}
                       />
                     )}
 
@@ -269,7 +375,7 @@ export default function ProductPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex flex-col space-y-2">
-                  <Button className="w-full">立即购买</Button>
+                  <Button className="w-full" disabled={isCreatingOrder} onClick={() => handlePurchase(service)}>{isCreatingOrder ? '处理中...' : '立即购买'}</Button>
                   <Button 
                     variant="outline" 
                     className="w-full" 
@@ -287,19 +393,19 @@ export default function ProductPage() {
         <section className="text-center bg-gray-50 p-8 rounded-lg">
           <h2 className="text-2xl font-bold mb-8">需要帮助？</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer" onClick={() => router.push('/docs/guide')}>
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-2">新手指南</h3>
                 <p className="text-gray-600">从零开始的详细教程</p>
               </CardContent>
             </Card>
-            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer" onClick={() => router.push('/docs/faq')}>
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-2">常见问题</h3>
                 <p className="text-gray-600">解答使用过程中的困惑</p>
               </CardContent>
             </Card>
-            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+            <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer" onClick={() => router.push('/docs/contact')}>
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-2">联系客服</h3>
                 <p className="text-gray-600">获取专业的技术支持</p>

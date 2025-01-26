@@ -11,7 +11,7 @@ export default function RechargePage() {
     const fetchContent = async () => {
       try {
         // 读取MD文件内容
-        const response = await fetch('/docs/新手指南.md');
+        const response = await fetch('/docs/联系客服指南.md');
         const text = await response.text();
         setContent(text);
       } catch (error) {

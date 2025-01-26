@@ -1,7 +1,6 @@
 // src/app/admin/server-accounts/components/ServerAccountList.tsx
 'use client';
 
-import { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -18,25 +17,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Trash } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { api } from '~/trpc/react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-
-
-interface ServerAccount {
-  id: string;
-  name: string;
-  config: string;
-  status: 'available' | 'assigned' | 'expired';
-  assignedTo?: string;
-  assignmentStart?: Date;
-  duration?: number;
-  assignmentEnd?: Date;
-}
+import { MoreHorizontal, Trash,Loader } from 'lucide-react';
+// import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 interface ServerAccountListProps {
   searchName: string;
@@ -45,50 +29,39 @@ interface ServerAccountListProps {
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
+  onDelete: (id: string) => void;
+  isLoading: boolean;
+  data?: {
+    data: Array<{
+      id: string;
+      name: string;
+      config: string;
+      status: string;
+      assignedTo?: string;
+      assignmentStart?: Date;
+      duration?: number;
+      assignmentEnd?: Date;
+    }>;
+    pagination: {
+      total: number;
+      totalPages: number;
+    };
+  };
 }
 
-export function ServerAccountList({ searchName, status, page, pageSize, onPageChange, onPageSizeChange }: ServerAccountListProps) {
-  const { data: accountsData, isLoading } = api.serverAccount.list.useQuery(
-    {
-      page,
-      pageSize,
-      searchName,
-      status: status === 'all' ? undefined : status,
-    },
-    {
-      keepPreviousData: true
-    }
-  );
-  const totalPages = accountsData?.totalPages ?? 1;
-
-  const accounts = accountsData?.data ?? [
-    {
-      id: '1',
-      name: '🇸🇬 新加坡 01',
-      config: 'trojan://password@server:443',
-      status: 'available',
-    },
-    {
-      id: '2',
-      name: '🇸🇬 新加坡 02',
-      config: 'trojan://password@server:443',
-      status: 'assigned',
-      assignedTo: 'user123',
-      assignmentStart: new Date('2024-01-01'),
-      duration: 30,
-      assignmentEnd: new Date('2024-01-31'),
-    },
-    {
-      id: '3',
-      name: '🇸🇬 新加坡 03',
-      config: 'trojan://password@server:443',
-      status: 'expired',
-      assignedTo: 'user456',
-      assignmentStart: new Date('2023-12-01'),
-      duration: 30,
-      assignmentEnd: new Date('2023-12-31'),
-    },
-  ];
+export function ServerAccountList({ 
+  searchName, 
+  status, 
+  page, 
+  pageSize, 
+  onPageChange, 
+  onPageSizeChange,
+  onDelete,
+  isLoading,
+  data
+}: ServerAccountListProps) {
+  const accounts = data?.data ?? [];
+  const totalPages = data?.pagination.totalPages ?? 0;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -108,6 +81,22 @@ export function ServerAccountList({ searchName, status, page, pageSize, onPageCh
     return new Date(date).toLocaleDateString('zh-CN');
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <Loader />
+      </div>
+    );
+  }
+
+  if (!accounts.length) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        暂无数据
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-md border">
       <Table>
@@ -120,14 +109,14 @@ export function ServerAccountList({ searchName, status, page, pageSize, onPageCh
             <TableHead>开始时间</TableHead>
             <TableHead>时长(天)</TableHead>
             <TableHead>到期时间</TableHead>
-            <TableHead className="w-16">操作</TableHead>
+            {/* <TableHead className="w-16">操作</TableHead> */}
           </TableRow>
         </TableHeader>
         <TableBody>
           {accounts.map((account) => (
             <TableRow key={account.id}>
               <TableCell>{account.name}</TableCell>
-              <TableCell className="font-mono text-sm">
+              <TableCell className="font-mono text-sm max-w-32">
                 {account.config}
               </TableCell>
               <TableCell>{getStatusBadge(account.status)}</TableCell>
@@ -135,7 +124,7 @@ export function ServerAccountList({ searchName, status, page, pageSize, onPageCh
               <TableCell>{formatDate(account.assignmentStart)}</TableCell>
               <TableCell>{account.duration || '-'}</TableCell>
               <TableCell>{formatDate(account.assignmentEnd)}</TableCell>
-              <TableCell>
+              {/* <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="h-8 w-8 p-0">
@@ -144,14 +133,17 @@ export function ServerAccountList({ searchName, status, page, pageSize, onPageCh
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {account.status === 'expired' && (
-                      <DropdownMenuItem className="text-red-600">
+                      <DropdownMenuItem 
+                        className="text-red-600"
+                        onClick={() => onDelete(account.id)}
+                      >
                         <Trash className="h-4 w-4 mr-2" />
                         删除
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </TableCell>
+              </TableCell> */}
             </TableRow>
           ))}
         </TableBody>
@@ -175,7 +167,7 @@ export function ServerAccountList({ searchName, status, page, pageSize, onPageCh
             </SelectContent>
           </Select>
           <div className="text-sm text-gray-500">
-            共 {accountsData?.pagination.total || 0} 条
+            共 {data?.pagination.total || 0} 条
           </div>
         </div>
 

@@ -111,10 +111,10 @@ export default function ProductPage() {
       const response = await fetch('/api/cron');
       const data = await response.json();
       if (data.status) {
-        toast.success('定时任务初始化成功');
+        // toast.success('定时任务初始化成功');
       }
     } catch (error) {
-      toast.error('定时任务初始化失败');
+      // toast.error('定时任务初始化失败');
     }
   };
   handleInitCron()

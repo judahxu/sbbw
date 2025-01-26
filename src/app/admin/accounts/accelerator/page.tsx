@@ -4,9 +4,7 @@
 import { useState } from 'react';
 import { 
   Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
+  CardContent,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,18 +15,99 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { PlusCircle, Download, Upload } from 'lucide-react';
+import { PlusCircle, Upload } from 'lucide-react';
 import { ServerAccountList } from './components/ServerAccountList';
 import { CreateAccountDialog } from './components/CreateAccountDialog';
 import { BatchImportDialog } from './components/BatchImportDialog';
+import { api } from '@/trpc/react';
+import { toast } from 'sonner';
 
 export default function ServerAccountsPage() {
+  // 状态管理
   const [searchName, setSearchName] = useState('');
   const [status, setStatus] = useState('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // TRPC Utils
+  const utils = api.useUtils();
+
+  // 获取账号列表
+  const { data: accountsData, isLoading } = api.serverAccount.list.useQuery(
+    {
+      page,
+      pageSize,
+      searchName,
+      status: status === 'all' ? undefined : status,
+    },
+    {
+      keepPreviousData: true
+    }
+  );
+
+  // 创建账号
+  const { mutate: createAccount } = api.serverAccount.create.useMutation({
+    onSuccess: () => {
+      toast.success('创建成功');
+      setShowCreateDialog(false);
+      utils.serverAccount.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    }
+  });
+
+  // 删除账号
+  const { mutate: deleteAccount } = api.serverAccount.delete.useMutation({
+    onSuccess: () => {
+      toast.success('删除成功');
+      utils.serverAccount.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    }
+  });
+
+  // 批量导入
+  const { mutate: batchImport } = api.serverAccount.batchImport.useMutation({
+    onSuccess: (result) => {
+      toast.success(`导入成功，共导入 ${result.count} 条数据`);
+      setShowImportDialog(false);
+      utils.serverAccount.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(`导入失败: ${error.message}`);
+    }
+  });
+
+  // 搜索处理
+  const handleSearch = (value: string) => {
+    setSearchName(value);
+    setPage(1); // 重置到第一页
+  };
+
+  // 状态筛选处理
+  const handleStatusChange = (value: string) => {
+    setStatus(value);
+    setPage(1); // 重置到第一页
+  };
+
+  // 创建账号处理
+  const handleCreate = (data: { name: string; config: string }) => {
+    createAccount(data);
+  };
+
+  // 删除账号处理
+  const handleDelete = (id: string) => {
+    deleteAccount({ id });
+  };
+
+  // 批量导入处理
+  const handleBatchImport = (accounts: Array<{ name: string; config: string }>) => {
+    batchImport({ accounts });
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -62,13 +141,13 @@ export default function ServerAccountsPage() {
               <Input
                 placeholder="搜索账号名称"
                 value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
               />
             </div>
             <div className="w-48">
               <Select
                 value={status}
-                onValueChange={setStatus}
+                onValueChange={handleStatusChange}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="账号状态" />
@@ -94,20 +173,25 @@ export default function ServerAccountsPage() {
         onPageChange={setPage}
         onPageSizeChange={(size) => {
           setPageSize(size);
-          setPage(1); // 改变每页条数时重置为第一页
+          setPage(1);
         }}
+        onDelete={handleDelete}
+        isLoading={isLoading}
+        data={accountsData}
       />
 
       {/* 新增账号对话框 */}
       <CreateAccountDialog 
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
+        onSubmit={handleCreate}
       />
 
       {/* 批量导入对话框 */}
       <BatchImportDialog
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
+        onSubmit={handleBatchImport}
       />
     </div>
   );

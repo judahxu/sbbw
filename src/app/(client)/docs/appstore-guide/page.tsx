@@ -1,13 +1,27 @@
-export default function GuidePage() {
-  return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">VPN Guide</h1>
-      <div className="flex flex-col gap-4">
-        <h2 className="text-xl font-bold">Step 1: Download the VPN Client</h2>
-        <p>
-          Download the VPN client from the official website or app store. Make
-        </p>
-      </div>
-    </div>
-  )
+// app/(client)/docs/recharge/page.tsx
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import MarkdownViewer from '@/app/components/MarkdownViewer';
+
+export default function RechargePage() {
+  const [content, setContent] = useState('');
+
+  useEffect(() => {
+    const fetchContent = async () => {
+      try {
+        // 读取MD文件内容
+        const response = await fetch('/docs/美区账号指南.md');
+        const text = await response.text();
+        setContent(text);
+      } catch (error) {
+        console.error('Error loading markdown:', error);
+        setContent('Error loading documentation.');
+      }
+    };
+
+    fetchContent();
+  }, []);
+
+  return <MarkdownViewer content={content} />;
 }

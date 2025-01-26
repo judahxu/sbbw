@@ -1,36 +1,94 @@
+// src/app/(client)/buy/page.tsx
 'use client';
-import { useState } from 'react';
+
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import WxPay from './WxPay';
+import { api } from '@/trpc/react';
+import { toast } from 'sonner';
+
+interface OrderDetails {
+  id: string;
+  type: 'acceleration' | 'appleId' | 'recharge';
+  amount: number;
+  status: string;
+  product: {
+    name: string;
+    description: string;
+  };
+}
 
 export default function OrderConfirmPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get('id');
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState('pending');
 
-  // Mock order data - would come from previous page/API
-  const orderData = {
-    productName: "加速服务-季付套餐",
-    details: "3个月加速服务",
-    price: 99,
-    orderNumber: "ORD" + Date.now().toString().slice(-8)
-  };
+  // Get order details
+  const { data: order, isLoading, error } = api.order.getDetails.useQuery(
+    { orderId: orderId! },
+    {
+      enabled: !!orderId,
+      retry: false,
+      onError: (error) => {
+        toast.error(`获取订单失败: ${error.message}`);
+      }
+    }
+  );
 
-  // Mock payment handling
+  // Update order status
+  const { mutate: updateOrderStatus } = api.order.updateStatus.useMutation({
+    onSuccess: () => {
+      setShowPaymentDialog(false);
+      toast.success('支付成功');
+      // Redirect to order detail page
+      router.push(`/orders/${orderId}`);
+    },
+    onError: (error) => {
+      toast.error(`更新订单状态失败: ${error.message}`);
+    }
+  });
+
+  // Handle payment initiation
   const handlePayment = () => {
+    if (!order.id) return;
     setShowPaymentDialog(true);
   };
 
-  // Mock payment success
+  // Handle payment success
   const handlePaymentSuccess = () => {
-    setShowPaymentDialog(false);
-    setPaymentStatus('success');
-    // Would redirect to success page
+    if (!orderId) return;
+    updateOrderStatus({ 
+      orderId,
+      status: 'paid'
+    });
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Alert variant="destructive">
+          <AlertDescription>
+            {error?.message || '订单不存在'}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <main className="flex flex-col items-center justify-start w-full">
@@ -43,19 +101,19 @@ export default function OrderConfirmPage() {
             <div className="mb-8 space-y-4">
               <div className="flex justify-between items-center border-b pb-4">
                 <span className="text-gray-600">订单编号</span>
-                <span className="font-mono">{orderData.orderNumber}</span>
+                <span className="font-mono">{order.id}</span>
               </div>
               <div className="flex justify-between items-center border-b pb-4">
                 <span className="text-gray-600">商品名称</span>
-                <span className="font-semibold">{orderData.productName}</span>
+                <span className="font-semibold">{order.product.name}</span>
               </div>
               <div className="flex justify-between items-center border-b pb-4">
                 <span className="text-gray-600">套餐详情</span>
-                <span>{orderData.details}</span>
+                <span>{order.product.description}</span>
               </div>
               <div className="flex justify-between items-center text-lg font-bold">
                 <span>应付金额</span>
-                <span className="text-red-500">￥{orderData.price}</span>
+                <span className="text-red-500">￥{order.amount}</span>
               </div>
             </div>
 
@@ -70,18 +128,11 @@ export default function OrderConfirmPage() {
               </div>
             </div>
 
-            {/* Error Message */}
-            {error && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
             {/* Submit Button */}
             <div className="flex justify-center">
               <Button
                 onClick={handlePayment}
-                disabled={loading}
+                // disabled={loading || order.status !== 'pending_payment'}
                 className="w-full md:w-auto"
               >
                 {loading ? (
@@ -100,9 +151,9 @@ export default function OrderConfirmPage() {
         {/* Terms Notice */}
         <p className="text-center text-sm text-gray-500 mt-6">
           点击确认支付即表示您同意我们的
-          <a href="/terms" className="text-blue-500 hover:underline mx-1">服务条款</a>
+          <a href="/docs/terms" className="text-blue-500 hover:underline mx-1">服务条款</a>
           和
-          <a href="/privacy" className="text-blue-500 hover:underline mx-1">隐私政策</a>
+          <a href="/docs/privacy" className="text-blue-500 hover:underline mx-1">隐私政策</a>
         </p>
       </div>
 
@@ -112,16 +163,14 @@ export default function OrderConfirmPage() {
           <DialogHeader>
             <DialogTitle>请扫码支付</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center p-6">
-            {/* Mock QR Code */}
-            <QRCodeSVG value={`mock_payment_url_${orderData.orderNumber}`} size={200} />
-            <div className="mt-4 font-medium">
-              支付金额：<span className="text-red-500">￥{orderData.price}</span>
-            </div>
-            <p className="mt-4 text-sm text-gray-500">
-              请使用微信扫描二维码完成支付
-            </p>
-          </div>
+          {order && (
+            <WxPay
+              orderId={order.id}
+              amount={Number(order.amount) * 100} // Convert to cents
+              description={order.product.name}
+              onSuccess={handlePaymentSuccess}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </main>

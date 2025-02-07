@@ -4,7 +4,6 @@ import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
 import { configs } from "~/server/db/schema";
-import { toString } from './../../../../node_modules/mdast-util-to-string/lib/index';
 
 // 配置类型枚举
 const ConfigType = {

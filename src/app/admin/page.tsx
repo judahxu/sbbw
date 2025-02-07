@@ -58,11 +58,11 @@ export default function DashboardPage() {
     range: timeRange
   });
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
-  }, [status, router]);
+  // useEffect(() => {
+  //   if (status === "unauthenticated") {
+  //     router.push("/login");
+  //   }
+  // }, [status, router]);
 
   if (status === "loading" || isStatsLoading) {
     return (

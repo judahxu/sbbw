@@ -1,23 +1,7 @@
-// app/admin/users/page.tsx
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { 
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue, 
-} from "@/components/ui/select"
-import {
   Table,
   TableBody,
   TableCell,
@@ -25,16 +9,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon } from "lucide-react"
-import { api } from "~/trpc/react" // 添加trpc import
-import { Loader2 } from "lucide-react" // 添加loading图标
-import { useToast } from '~/hooks/use-toast'
+import { api } from "~/trpc/react"
+import { Loader2 } from "lucide-react"
 import {
   Pagination,
   PaginationContent,
@@ -44,208 +25,83 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-export default function UsersPage() {
-  const router = useRouter()
-  const { toast } = useToast()
 
+export default function UsersPage() {
   const [filters, setFilters] = useState({
     keyword: '',
-    roles: [] as string[],
-    dateRange: {
-      from: undefined as Date | undefined,
-      to: undefined as Date | undefined
-    },
     page: 1,
     pageSize: 10
   })
 
-  // 调用API获取用户列表
-  const { data, isLoading, error } = api.admin.listUsers.useQuery(filters, {
-    onError: (error) => {
-      toast({
-        variant: "destructive",
-        title: "错误",
-        description: error.message
-      })
-    }
-  })
+  const { data, isLoading } = api.admin.listUsers.useQuery(filters)
 
-  // 处理页码变化
-  const handlePageChange = (page: number) => {
-    setFilters(prev => ({
-      ...prev,
-      page
-    }))
-  }
-
-  // 渲染分页组件
-  const renderPagination = () => {
-    if (!data?.pagination) return null
-
-    const { page, pageCount } = data.pagination
+  // Generate page numbers logic
+  const generatePaginationItems = () => {
+    if (!data?.pagination) return []
     
-    return (
-      <Pagination className="mt-4">
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious 
-              onClick={() => handlePageChange(page - 1)}
-              disabled={page === 1} 
-            />
-          </PaginationItem>
-          
-          {[...Array(pageCount)].map((_, i) => (
-            <PaginationItem key={i + 1}>
-              <PaginationLink
-                onClick={() => handlePageChange(i + 1)}
-                isActive={page === i + 1}
-              >
-                {i + 1}
-              </PaginationLink>
-            </PaginationItem>
-          ))}
-          
-          <PaginationItem>
-            <PaginationNext
-              onClick={() => handlePageChange(page + 1)}
-              disabled={page === pageCount}
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
-    )
+    const { page, pageCount } = data.pagination
+    const items = []
+    
+    // Always show first page
+    items.push(1)
+    
+    if (page > 3) {
+      items.push('ellipsis')
+    }
+    
+    // Show current page and surrounding pages
+    for (let i = Math.max(2, page - 1); i <= Math.min(pageCount - 1, page + 1); i++) {
+      items.push(i)
+    }
+    
+    if (page < pageCount - 2) {
+      items.push('ellipsis')
+    }
+    
+    // Always show last page
+    if (pageCount > 1) {
+      items.push(pageCount)
+    }
+    
+    return items
   }
 
   return (
     <div className="container mx-auto py-6">
-      {/* 页面标题 */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">用户管理</h1>
-        <Button onClick={() => router.push('/admin/users/new')}>
-          添加用户
-        </Button>
       </div>
 
-      {/* 搜索和筛选区 */}
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          <div className="flex flex-wrap gap-4">
-            {/* 搜索框 */}
-            <div className="flex-1 min-w-[200px]">
-              <Input
-                placeholder="搜索用户名/邮箱"
-                value={filters.keyword}
-                onChange={(e) => setFilters(prev => ({
-                  ...prev,
-                  keyword: e.target.value,
-                  page: 1 // 重置页码
-                }))}
-              />
-            </div>
+      <div className="flex gap-4 mb-6">
+        <Input
+          className="max-w-sm"
+          placeholder="搜索用户名/邮箱"
+          value={filters.keyword}
+          onChange={(e) => setFilters(prev => ({
+            ...prev,
+            keyword: e.target.value,
+            page: 1
+          }))}
+        />
+      </div>
 
-            {/* 角色筛选 */}
-            <div className="w-[200px]">
-              <Select
-                 onValueChange={(value) => setFilters(prev => ({
-                  ...prev,
-                  roles: [...prev.roles, value],
-                  page: 1
-                }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择角色" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">普通用户</SelectItem>
-                  <SelectItem value="admin">管理员</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 日期范围选择 */}
-            <div className="flex gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[180px] justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filters.dateRange.from ? (
-                      format(filters.dateRange.from, "yyyy-MM-dd")
-                    ) : (
-                      <span>开始日期</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={filters.dateRange.from}
-                    onSelect={(date) => setFilters(prev => ({
-                      ...prev,
-                      dateRange: {
-                        ...prev.dateRange,
-                        from: date
-                      },
-                      page: 1
-                    }))}
-                  />
-                </PopoverContent>
-              </Popover>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[180px] justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filters.dateRange.to ? (
-                      format(filters.dateRange.to, "yyyy-MM-dd")
-                    ) : (
-                      <span>结束日期</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={filters.dateRange.to}
-                    onSelect={(date) => setFilters(prev => ({
-                      ...prev,
-                      dateRange: {
-                        ...prev.dateRange,
-                        to: date
-                      },
-                      page: 1
-                    }))}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 用户列表表格 */}
-      <Card>
-        <CardContent className="p-0">
+      <div className="bg-white rounded-lg shadow">
         {isLoading ? (
-            <div className="flex justify-center items-center h-[200px]">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : error ? (
-            <div className="flex justify-center items-center h-[200px] text-red-500">
-              加载失败: {error.message}
-            </div>
-          ) : !data?.users.length ? (
-            <div className="flex justify-center items-center h-[200px] text-gray-500">
-              暂无数据
-            </div>
-          ) : (
+          <div className="flex justify-center items-center h-[200px]">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : !data?.users.length ? (
+          <div className="flex justify-center items-center h-[200px] text-gray-500">
+            暂无数据
+          </div>
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[300px]">用户信息</TableHead>
                 <TableHead>角色</TableHead>
                 <TableHead>注册时间</TableHead>
-                {/* <TableHead>服务使用</TableHead> */}
                 <TableHead>状态</TableHead>
-                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -254,9 +110,9 @@ export default function UsersPage() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar>
-                        <AvatarImage src={user.image || ''} />
+                        <AvatarImage src={user.image ?? ''} />
                         <AvatarFallback>
-                          {user.name?.slice(0, 2).toUpperCase() || 'U'}
+                          {user.name?.slice(0, 2).toUpperCase() ?? 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <div>
@@ -276,45 +132,100 @@ export default function UsersPage() {
                       format(user.emailVerified, 'yyyy-MM-dd HH:mm') : 
                       '未验证'}
                   </TableCell>
-                  {/* <TableCell>
-                    <div className="flex gap-2">
-                      {user.services.accounts > 0 && (
-                        <Badge variant="outline">
-                          账号: {user.services.accounts}
-                        </Badge>
-                      )}
-                      {user.services.apiKeys > 0 && (
-                        <Badge variant="outline">
-                          API: {user.services.apiKeys}
-                        </Badge>
-                      )}
-                      {user.services.accelerators > 0 && (
-                        <Badge variant="outline">
-                          加速器: {user.services.accelerators}
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell> */}
                   <TableCell>
-                    <Badge variant={user.emailVerified ? 'success' : 'warning'}>
+                    <Badge variant={user.emailVerified ? 'default' : 'destructive'}>
                       {user.emailVerified ? '已验证' : '未验证'}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      onClick={() => router.push(`/admin/users/${user.id}`)}
-                    >
-                      查看
-                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
-        </CardContent>
-      </Card>
+
+        {data?.pagination && (
+          <div className="flex items-center justify-between px-4 py-4 border-t">
+            <div className="flex items-center gap-2">
+              <Select
+                value={String(filters.pageSize)}
+                onValueChange={(value) => setFilters(prev => ({
+                  ...prev,
+                  pageSize: Number(value),
+                  page: 1
+                }))}
+              >
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue>{filters.pageSize} 条/页</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 条/页</SelectItem>
+                  <SelectItem value="20">20 条/页</SelectItem>
+                  <SelectItem value="50">50 条/页</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-gray-500">
+                共 {data.pagination.total || 0} 条
+              </span>
+            </div>
+
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={(e) => {
+                      if (data.pagination.page <= 1) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setFilters(prev => ({
+                        ...prev,
+                        page: prev.page - 1
+                      }))
+                    }}
+                    aria-disabled={data.pagination.page === 1}
+                  />
+                </PaginationItem>
+
+                {generatePaginationItems().map((item, index) => (
+                  item === 'ellipsis' ? (
+                    <PaginationItem key={`ellipsis-${index}`}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  ) : (
+                    <PaginationItem key={item}>
+                      <PaginationLink
+                        onClick={() => setFilters(prev => ({
+                          ...prev,
+                          page: item as number
+                        }))}
+                        isActive={data.pagination.page === item}
+                      >
+                        {item}
+                      </PaginationLink>
+                    </PaginationItem>
+                  )
+                ))}
+
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={(e) => {
+                      if (data.pagination.page >= data.pagination.pageCount) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setFilters(prev => ({
+                        ...prev,
+                        page: prev.page + 1
+                      }))
+                    }}
+                    aria-disabled={data.pagination.page === data.pagination.pageCount}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

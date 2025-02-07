@@ -9,11 +9,17 @@ interface ExchangeRateResponse {
   error?: string;
 }
 
+// Type for the API response
+interface ApiResponse {
+  result: string;
+  rates: {
+    CNY: number;
+    [key: string]: number;
+  };
+}
+
 export async function fetchExchangeRate(): Promise<ExchangeRateResponse> {
-  // 5fb14c87bdbef2c22ed1cb8b  //API key
   try {
-    // https://v6.exchangerate-api.com/v6/5fb14c87bdbef2c22ed1cb8b/latest/USD
-    // 使用 ExchangeRate-API 的免费API (你需要注册获取API key)
     const response = await fetch(
       `https://api.exchangerate-api.com/v4/latest/USD`
     );
@@ -22,16 +28,20 @@ export async function fetchExchangeRate(): Promise<ExchangeRateResponse> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    const data = await response.json();
-    const rate = data.rates.CNY;
+    const data = (await response.json()) as ApiResponse;
     
-    if (!rate) {
-      throw new Error("Could not find CNY rate in response");
+    // Type guard to check if the response has the expected structure
+    if (!data || typeof data.rates?.CNY !== 'number') {
+      throw new Error("Invalid API response format");
     }
 
-    return { success: true, rate };
+    return { success: true, rate: data.rates.CNY };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('Error fetching exchange rate:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 }
 
@@ -40,6 +50,7 @@ export async function updateExchangeRate(): Promise<boolean> {
     const { success, rate, error } = await fetchExchangeRate();
     
     if (!success || !rate) {
+      console.error('Failed to update exchange rate:', error);
       return false;
     }
 
@@ -54,6 +65,7 @@ export async function updateExchangeRate(): Promise<boolean> {
 
     return true;
   } catch (error) {
+    console.error('Error updating exchange rate:', error);
     return false;
   }
 }

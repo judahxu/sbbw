@@ -1,9 +1,10 @@
 // src/server/api/routers/config.ts
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
 import { configs } from "~/server/db/schema";
+import { toString } from './../../../../node_modules/mdast-util-to-string/lib/index';
 
 // 配置类型枚举
 const ConfigType = {
@@ -15,18 +16,12 @@ const ConfigType = {
 
 export const configRouter = createTRPCRouter({
   // 获取所有配置
-  getAll: protectedProcedure
+  getAll: publicProcedure
     .input(z.object({
       type: z.enum(['acceleration', 'appstore', 'exchange_rate', 'service_fee']).optional()
     }).optional())
     .query(async ({ ctx, input }) => {
       // 检查权限
-      if (ctx.session.user.role !== 'admin') {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: '无权限访问'
-        });
-      }
 
       try {
         // if (input.type) {
@@ -116,7 +111,14 @@ export const configRouter = createTRPCRouter({
           .set({
             ...updateData,
             updated_at: sql`CURRENT_TIMESTAMP(3)`,
-            updated_by: ctx.session.user.id
+            updated_by: ctx.session.user.id,
+            exchange_rate: updateData.exchange_rate?.toString(),
+            original_price: updateData.original_price?.toString(),
+            current_price: updateData.current_price?.toString(),
+            fee_percentage: updateData.fee_percentage?.toString(),
+            minimum_fee: updateData.minimum_fee?.toString(),
+            maximum_fee: updateData.maximum_fee?.toString(),
+
           })
           .where(eq(configs.id, id));
 
@@ -182,9 +184,9 @@ export const configRouter = createTRPCRouter({
       try {
         await ctx.db.update(configs)
           .set({
-            fee_percentage: input.percentage,
-            minimum_fee: input.minimum_fee,
-            maximum_fee: input.maximum_fee,
+            fee_percentage: input.percentage.toString(),
+            minimum_fee: input?.minimum_fee?.toString(),  
+            maximum_fee: input.maximum_fee?.toString(),
             updated_at: sql`CURRENT_TIMESTAMP(3)`,
             updated_by: ctx.session.user.id
           })

@@ -42,24 +42,9 @@ import {
 } from "@/components/ui/pagination";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
+import { Account, AccountStatus,PaginationState,toAccountStatus } from "./types";
 // 账号状态类型
-export enum AccountStatus {
-  AVAILABLE = 'available',
-  SOLD = 'sold',
-  ABNORMAL = 'abnormal'
-}
 
-// 账号类型定义
-interface Account {
-  id: string;
-  email: string;
-  password: string;
-  status: AccountStatus;
-  createdAt: Date;
-  soldAt?: Date;
-  orderId?: string;
-  notes?: string;
-}
 
 // 状态标签组件
 const StatusBadge = ({ status }: { status: AccountStatus }) => {
@@ -103,11 +88,11 @@ const AccountForm = ({
   initialData?: Account;
 }) => {
   const [formData, setFormData] = useState({
-    email: initialData?.email || '',
-    password: initialData?.password || '',
-    status: initialData?.status || AccountStatus.AVAILABLE,
-    orderId: initialData?.orderId || '',
-    notes: initialData?.notes || ''
+    email: initialData?.email ?? '',
+    password: initialData?.password ?? '',
+    status: initialData?.status ?? AccountStatus.AVAILABLE,
+    orderId: initialData?.orderId ?? '',
+    notes: initialData?.notes ?? ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -186,11 +171,7 @@ const AccountForm = ({
 };
 
 // 主页面组件
-interface PaginationState {
-  pageSize: number;
-  currentPage: number;
-  totalCount: number;
-}
+
 
 export default function AccountsPage() {
   const [emailFilter, setEmailFilter] = useState('');
@@ -201,19 +182,27 @@ export default function AccountsPage() {
     totalCount: 0,
   });
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<Account | undefined>(undefined);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
   const { data, isLoading, refetch } = api.appleAccount.getAccounts.useQuery({
     pageSize: pagination.pageSize,
     currentPage: pagination.currentPage,
     email: emailFilter || undefined,
-    status: statusFilter === 'all' ? undefined : statusFilter as any,
+    status: statusFilter === 'all' ? undefined : statusFilter as AccountStatus,
   });
+
+  const processedAccounts = data?.accounts.map(account => ({
+    ...account,
+    status: toAccountStatus(account.status),
+    soldAt: account.soldAt ?? undefined,  // 将null转换为undefined
+    orderId: account.orderId ?? undefined,  // 将null转换为undefined
+    notes: account.notes ?? undefined  // 将null转换为undefined
+  }));
 
   useEffect(() => {
     if (data) {
-      setPagination(prev => ({ ...prev, totalCount: data.totalCount }));
+      setPagination(prev => ({ ...prev, totalCount: data.totalCount??0 }));
     }
   }, [data]);
 
@@ -233,9 +222,9 @@ export default function AccountsPage() {
 
   // For creating account
   const { mutate: createAccount } = api.appleAccount.createAccount.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('账号创建成功');
-      refetch();
+      await refetch();
       setIsAddDialogOpen(false);
     },
     onError: (error) => {
@@ -245,10 +234,10 @@ export default function AccountsPage() {
 
   // For updating account
   const { mutate: updateAccount } = api.appleAccount.updateAccount.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('账号更新成功');
-      refetch();
-      setSelectedAccount(null);
+      await refetch();
+      setSelectedAccount(undefined);
     },
     onError: (error) => {
       toast.error(`更新失败: ${error.message}`);
@@ -257,9 +246,9 @@ export default function AccountsPage() {
 
   // For batch importing
   const { mutate: batchImport } = api.appleAccount.batchImport.useMutation({
-    onSuccess: () => {
+    onSuccess:async () => {
       toast.success('账号导入成功');
-      refetch();
+      await refetch();
       setIsImportDialogOpen(false);
     },
     onError: (error) => {
@@ -284,10 +273,10 @@ export default function AccountsPage() {
     <div className="container mx-auto p-6 space-y-6">
       {/* 统计卡片 */}
       <div className="grid grid-cols-4 gap-4">
-        <StatsCard title="账号总数" value={statsData?.total || 0} />
-        <StatsCard title="可用账号" value={statsData?.available || 0} />
-        <StatsCard title="已售账号" value={statsData?.sold || 0} />
-        <StatsCard title="异常账号" value={statsData?.abnormal || 0} />
+        <StatsCard title="账号总数" value={statsData?.total ?? 0} />
+        <StatsCard title="可用账号" value={statsData?.available ?? 0} />
+        <StatsCard title="已售账号" value={statsData?.sold ?? 0} />
+        <StatsCard title="异常账号" value={statsData?.abnormal ?? 0} />
       </div>
 
       {/* 操作栏 */}
@@ -366,19 +355,14 @@ export default function AccountsPage() {
                 <Loader2 className="w-6 h-6 animate-spin mx-auto" />
               </TableCell>
             </TableRow>
-          ) : data?.accounts?.length === 0 ? (
+          ) : processedAccounts?.length === 0 ? (
             <TableRow>
               <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                 暂无数据
               </TableCell>
             </TableRow>
           ) : (
-            data?.accounts
-              .slice(
-                (pagination.currentPage - 1) * pagination.pageSize,
-                pagination.currentPage * pagination.pageSize
-              )
-              .map((account) => (
+            processedAccounts?.map((account) => (
               <TableRow key={account.id}>
                 <TableCell>{account.email}</TableCell>
                 <TableCell>{account.password}</TableCell>
@@ -474,7 +458,7 @@ export default function AccountsPage() {
       </div>
 
       {/* 编辑弹窗 */}
-      <Dialog open={!!selectedAccount} onOpenChange={() => setSelectedAccount(null)}>
+      <Dialog open={!!selectedAccount} onOpenChange={() => setSelectedAccount(undefined)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>编辑账号</DialogTitle>

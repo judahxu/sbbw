@@ -16,6 +16,22 @@ interface MarkdownViewerProps {
   content: string;
 }
 
+interface CodeProps {
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+}
+
+interface HeadingProps extends React.HTMLProps<HTMLHeadingElement> {
+  children?: React.ReactNode;
+}
+
+interface ListItemProps {
+  children?: React.ReactNode;
+  ordered?: boolean;
+  index?: number;
+}
+
 export default function MarkdownViewer({ content }: MarkdownViewerProps) {
   const [tableOfContents, setTableOfContents] = useState<TableOfContentsItem[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -38,7 +54,9 @@ export default function MarkdownViewer({ content }: MarkdownViewerProps) {
       .split('\n')
       .filter(line => line.startsWith('#'))
       .map((line, index) => {
-        const level = line.match(/^#+/)?.[0].length || 0;
+        const headingRegex = /^#+/;
+        const match = headingRegex.exec(line);
+        const level = match?.[0].length ?? 0;
         const text = line.replace(/^#+\s*/, '').trim();
         const id = generateId(text, index);
         return { id, text, level };
@@ -68,40 +86,62 @@ export default function MarkdownViewer({ content }: MarkdownViewerProps) {
     }
   };
 
-  const createHeadingComponent = (level: number) => {
-    return function HeadingComponent({ children, ...props }: any) {
-      const headingIndex = tableOfContents.findIndex(item => item.text === children?.toString()?.trim());
-      const id = headingIndex >= 0 ? tableOfContents[headingIndex].id : generateId(children?.toString() || '', tableOfContents.length);
-      
-      const className = {
-        1: "scroll-m-20 text-4xl font-bold tracking-tight mb-4",
-        2: "scroll-m-20 text-2xl font-semibold tracking-tight mb-4 mt-8",
-        3: "scroll-m-20 text-xl font-semibold tracking-tight mb-4 mt-6",
-      }[level] || "scroll-m-20 text-lg font-semibold tracking-tight mb-4 mt-6";
-
-      return React.createElement(`h${level}`, { id, className, ...props }, children);
-    };
+  const safeToString = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return value.toString();
+    if (typeof value === 'boolean') return value.toString();
+    if (typeof value === 'bigint') return value.toString();
+    if (value == null) return '';
+    if (React.isValidElement(value)) return '';
+    if (Array.isArray(value)) return value.map(safeToString).join('');
+    return ''; // Return empty string for objects and any other types
   };
 
-  const components = {
-    h1: createHeadingComponent(1),
-    h2: createHeadingComponent(2),
-    h3: createHeadingComponent(3),
-    h4: createHeadingComponent(4),
-    h5: createHeadingComponent(5),
-    h6: createHeadingComponent(6),
-    p: ({ children }) => <p className="leading-7 mb-4">{children}</p>,
-    ul: ({ children }) => (
-      <ul className="mb-4 space-y-1 list-none pl-0">
-        {children}
-      </ul>
-    ),
-    ol: ({ children }) => (
-      <ol className="mb-4 space-y-1 list-none pl-0">
-        {children}
-      </ol>
-    ),
-    li: ({ children, ordered, index }) => (
+
+  const components = React.useMemo(() => ({
+    h1: ({ children, ...props }: HeadingProps) => {
+      const text = safeToString(children);
+      const headingIndex = tableOfContents.findIndex(item => item.text === text.trim());
+      const id = headingIndex >= 0 && headingIndex < tableOfContents.length 
+        ? tableOfContents[headingIndex]?.id 
+        : generateId(text, tableOfContents.length);
+      
+      return (
+        <h1 id={id} className="scroll-m-20 text-4xl font-bold tracking-tight mb-4" {...props}>
+          {children}
+        </h1>
+      );
+    },
+  
+    h2: ({ children, ...props }: HeadingProps) => {
+      const text = safeToString(children);
+      const headingIndex = tableOfContents.findIndex(item => item.text === text.trim());
+      const id = headingIndex >= 0 && headingIndex < tableOfContents.length 
+        ? tableOfContents[headingIndex]?.id 
+        : generateId(text, tableOfContents.length);
+      
+      return (
+        <h2 id={id} className="scroll-m-20 text-2xl font-semibold tracking-tight mb-4 mt-8" {...props}>
+          {children}
+        </h2>
+      );
+    },
+  
+    h3: ({ children, ...props }: HeadingProps) => {
+      const text = safeToString(children);
+      const headingIndex = tableOfContents.findIndex(item => item.text === text.trim());
+      const id = headingIndex >= 0 && headingIndex < tableOfContents.length 
+        ? tableOfContents[headingIndex]?.id 
+        : generateId(text, tableOfContents.length);
+      
+      return (
+        <h3 id={id} className="scroll-m-20 text-xl font-semibold tracking-tight mb-4 mt-6" {...props}>
+          {children}
+        </h3>
+      );
+    },
+  
+    li: ({ children, ordered, index = 0 }: ListItemProps) => (
       <li className="flex items-start gap-2 leading-7">
         <span className="min-w-[1.5em] select-none">
           {ordered ? `${index + 1}.` : '•'}
@@ -109,22 +149,23 @@ export default function MarkdownViewer({ content }: MarkdownViewerProps) {
         <span>{children}</span>
       </li>
     ),
-    blockquote: ({ children }) => (
-      <blockquote className="border-l-4 border-gray-200 pl-4 my-4 italic">
-        {children}
-      </blockquote>
-    ),
-    code: ({ inline, children }) => {
+  
+    code: ({ inline, children }: CodeProps) => {
       if (inline) {
-        return <code className="bg-muted px-1.5 py-0.5 rounded-sm font-mono text-sm">{children}</code>;
+        return (
+          <code className="bg-muted px-1.5 py-0.5 rounded-sm font-mono text-sm">
+            {children}
+          </code>
+        );
       }
       return (
         <pre className="bg-muted p-4 rounded-lg overflow-x-auto">
           <code className="font-mono text-sm">{children}</code>
         </pre>
       );
-    },
-  };
+    }
+  }), [tableOfContents, generateId]);
+
 
   const TableOfContents = () => (
     <div className="space-y-1">
@@ -141,6 +182,8 @@ export default function MarkdownViewer({ content }: MarkdownViewerProps) {
       ))}
     </div>
   );
+
+
 
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">

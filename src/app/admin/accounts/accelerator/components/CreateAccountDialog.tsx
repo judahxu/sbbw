@@ -56,7 +56,7 @@ export function CreateAccountDialog({
 
     setIsSubmitting(true);
     try {
-      await onSubmit({ name: name.trim(), config: config.trim() });
+      onSubmit({ name: name.trim(), config: config.trim() });
       // 重置表单
       setName('');
       setConfig('');

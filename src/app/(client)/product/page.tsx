@@ -5,13 +5,49 @@ import React from 'react';
 // import { ServiceCard } from './components/ServiceCard';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, HelpCircle, Info  } from 'lucide-react';
+import { ArrowRight, HelpCircle, Info,Loader2  } from 'lucide-react';
 import { PricingTiers, RechargeCalculator } from './components/PricingTiers';
 import { Badge } from '@/components/ui/badge';
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from 'next/navigation';
 import { api } from "~/trpc/react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+
+interface PricingTier {
+  period: string;
+  price: number;
+  unit: string;
+  originalPrice?: number;
+  recommended?: boolean;
+  cycle: 'monthly' | 'quarterly' | 'yearly';
+}
+
+
+interface RelatedService {
+  title: string;
+  description: string;
+}
+
+interface Service {
+  title: string;
+  description: string;
+  features: string[];
+  hasPricingTiers?: boolean;
+  hasCalculator?: boolean;
+  documentation: string;
+  price?: {
+    amount: number;
+    unit: string;
+  };
+  relatedServices?: RelatedService[];
+}
+
+interface RechargeCalculation {
+  usdAmount: number;
+  baseAmount: number;
+  feeAmount: number;
+  total: number;
+}
 
 
 // 服务流程图组件
@@ -112,14 +148,20 @@ function BeginnerGuide() {
 }
 
 export default function ProductPage() {
-  const [selectedTier, setSelectedTier] = React.useState<any>({
+  const [selectedTier, setSelectedTier] = React.useState<PricingTier>({
     period: '季付',
     price: 99,
     unit: '季度',
     originalPrice: 147,
-    recommended: true
+    recommended: true,
+    cycle:"quarterly"
   });
+  // 在组件内
   const router = useRouter();
+  const pathname = usePathname();
+  const { data: session } = useSession();
+
+
    // 获取所有配置
    const { data: configs, isLoading } = api.config.getAll.useQuery(undefined, {
     // 保持数据新鲜度
@@ -162,14 +204,15 @@ export default function ProductPage() {
           price: Number(quarterlyConfig.current_price),
           unit: '季度',
           originalPrice: Number(quarterlyConfig.original_price),
-          recommended: true
+          recommended: true,
+          cycle: "quarterly"
         });
       }
     }
   }, [configs]);
   
   // 更新服务数据结构
-  const services = React.useMemo(() => [
+  const services: Service[] = React.useMemo(() => [
     {
       title: '加速服务',
       description: '提供可靠、不间断的加速服务，让您高速、稳定地访问国外网站',
@@ -196,7 +239,7 @@ export default function ProductPage() {
         '完整的使用教程支持'
       ],
       price: {
-        amount: configs?.find(c => c.type === 'appstore')?.current_price ?? 99,
+        amount: Number(configs?.find(c => c.type === 'appstore')?.current_price) ?? 99,
         unit: '个'
       },
       documentation: '/docs/appstore-guide',
@@ -226,16 +269,10 @@ export default function ProductPage() {
     }
   ], [configs]);
 
-  const { data: session } = useSession();
-  const [rechargeCalculation, setRechargeCalculation] = React.useState<{
-    usdAmount: number;
-    baseAmount: number;
-    feeAmount: number;
-    total: number;
-  }>();
+  const [rechargeCalculation, setRechargeCalculation] = React.useState<RechargeCalculation>();
   
   // 创建订单mutation
-  const { mutate: createOrder, isLoading: isCreatingOrder } = api.order.createOrder.useMutation({
+  const { mutate: createOrder, isPending: isCreatingOrder } = api.order.createOrder.useMutation({
     onSuccess: ({ orderId }) => {
       router.push(`/buy?id=${orderId}`);
     },
@@ -248,7 +285,7 @@ export default function ProductPage() {
   const handlePurchase = (service: typeof services[0]) => {
     if (!session) {
       // 未登录时重定向到登录页面
-      router.push(`/login?redirect=${encodeURIComponent(router.asPath)}`);
+      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
       return;
     }
 
@@ -265,17 +302,18 @@ export default function ProductPage() {
       case '美区账号':
         createOrder({
           type: 'appleId',
-          amount: service.price.amount
+          amount: Number(service?.price?.amount),
         });
         break;
 
       case '充值服务':
+        console.log(rechargeCalculation);
         if (!rechargeCalculation) return;
         createOrder({
           type: 'recharge',
           amount: rechargeCalculation.total,
           usdAmount: rechargeCalculation.usdAmount,
-          exchangeRate: exchangeRate,
+          exchangeRate: Number(exchangeRate),
         });
         break;
     }
@@ -283,10 +321,16 @@ export default function ProductPage() {
 
 
     // 如果还在加载配置，显示加载状态
-    if (isLoading) {
-      return <div>Loading...</div>; // 这里可以使用更好的加载UI组件
-    }
-    console.log(configs);
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary/80" />
+          <p className="text-sm text-muted-foreground">加载中...</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow container mx-auto px-4 py-8">
@@ -329,7 +373,8 @@ export default function ProductPage() {
                           unit: config.cycle === 'monthly' ? '月' : 
                                 config.cycle === 'quarterly' ? '季度' : '年',
                           originalPrice: Number(config.original_price),
-                          recommended: config.cycle === 'quarterly'
+                          recommended: config.cycle === 'quarterly',
+                          cycle: config.cycle as 'monthly' | 'quarterly' | 'yearly'
                         }))}
                         selectedTier={selectedTier}
                         onSelect={setSelectedTier}
@@ -340,6 +385,7 @@ export default function ProductPage() {
                       <RechargeCalculator
                         exchangeRate={Number(exchangeRate)}
                         serviceFee={Number(serviceFee)}
+                        onCalculate={setRechargeCalculation}
                       />
                     )}
 

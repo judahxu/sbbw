@@ -15,17 +15,20 @@ import {
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Order } from '@/types/orders';
+import { Order } from '../types';
+import { Loader2 } from 'lucide-react';
 
 interface OrderDetailModalProps {
   open: boolean;
   order: Order;
+  isLoading: boolean;
   onClose: () => void;
 }
 
 export function OrderDetailModal({
   open,
   order,
+  isLoading,
   onClose
 }: OrderDetailModalProps) {
   // 订单类型显示
@@ -67,12 +70,7 @@ export function OrderDetailModal({
                 <div>{order.plan === 'monthly' ? '月付' : order.plan === 'quarterly' ? '季付' : '年付'}</div>
                 {order.configuration && (
                   <>
-                    <div className="text-muted-foreground">服务器</div>
-                    <div>{order.configuration.server}</div>
-                    <div className="text-muted-foreground">端口</div>
-                    <div>{order.configuration.port}</div>
-                    <div className="text-muted-foreground">密码</div>
-                    <div>{order.configuration.password}</div>
+                    {order.configuration}
                   </>
                 )}
               </div>
@@ -113,8 +111,8 @@ export function OrderDetailModal({
                 <div>${order.usdAmount}</div>
                 <div className="text-muted-foreground">汇率</div>
                 <div>{order.exchangeRate}</div>
-                <div className="text-muted-foreground">充值账号</div>
-                <div>{order.appliedAccount}</div>
+                {/* <div className="text-muted-foreground">充值账号</div> */}
+                {/* <div>{order.appliedAccount}</div> */}
                 {order.giftCardCode && (
                   <>
                     <div className="text-muted-foreground">礼品卡代码</div>
@@ -127,6 +125,22 @@ export function OrderDetailModal({
         );
     }
   };
+
+  if (isLoading) {
+    return (
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent>
+          <div className="flex justify-center p-4">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (!order) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

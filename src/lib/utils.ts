@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
+import type { Order } from "./types/orders";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -62,7 +63,7 @@ export function getDateRangeFilter(range: string) {
 export function formatDuration(duration: string | null): string {
   if (!duration) return '-';
   
-  const match = duration.match(/^(\d+)([mdy])$/);
+  const match = /^(\d+)([mdy])$/.exec(duration);
   if (!match) return duration;
 
   const [, amount, unit] = match;
@@ -90,7 +91,7 @@ export function formatCurrency(amount: number, currency: 'USD' | 'CNY' = 'CNY'):
 /**
  * 格式化日期时间
  */
-export function formatDateTime(date: Date | string | null, formatStr: string = 'yyyy-MM-dd HH:mm:ss'): string {
+export function formatDateTime(date: Date | string | null, formatStr = 'yyyy-MM-dd HH:mm:ss'): string {
   if (!date) return '-';
   return format(new Date(date), formatStr);
 }
@@ -129,10 +130,10 @@ export function generateOrderNumber(type: 'account' | 'accelerator' | 'api' | 'p
  * 计算到期时间
  */
 export function calculateExpireDate(duration: string, startDate: Date = new Date()): Date {
-  const match = duration.match(/^(\d+)([mdy])$/);
+  const match = /^(\d+)([mdy])$/.exec(duration);
   if (!match) throw new Error('Invalid duration format');
 
-  const [, amount, unit] = match;
+  const [amount, unit] = match;
   const value = parseInt(amount);
   
   const date = new Date(startDate);
@@ -243,4 +244,65 @@ export function parseFormValue<T>(value: unknown, defaultValue: T): T {
 }
 
 
+export function getProductName(order: Order): string {
+  switch (order.type) {
+    case 'acceleration':
+      const plan = order.accelerationOrder?.plan;
+      return `加速服务-${
+        plan === 'monthly' ? '月付' :
+        plan === 'quarterly' ? '季付' : '年付'
+      }套餐`;
+    case 'appleId':
+      return '美区账号';
+    case 'recharge':
+      return '充值服务';
+    default:
+      return '未知产品';
+  }
+}
+
+export function getProductDescription(order: Order): string {
+  switch (order.type) {
+    case 'acceleration':
+      const plan = order.accelerationOrder?.plan;
+      return `${
+        plan === 'monthly' ? '1个月' :
+        plan === 'quarterly' ? '3个月' : '12个月'
+      }加速服务`;
+    case 'appleId':
+      return '独立账号，永久使用';
+    case 'recharge':
+      if (order.rechargeOrder) {
+        return `${order.rechargeOrder.usdAmount}美元充值`;
+      }
+      return '充值服务';
+    default:
+      return '';
+  }
+}
+
+export function getOrderDetails(order: Order): Record<string, any> {
+  switch (order.type) {
+    case 'acceleration':
+      return {
+        plan: order.accelerationOrder?.plan,
+        configuration: order.accelerationOrder?.configuration,
+        startDate: order.accelerationOrder?.startDate,
+        endDate: order.accelerationOrder?.endDate,
+      };
+    case 'appleId':
+      return {
+        email: order.appleIdOrder?.email,
+        password: order.appleIdOrder?.password,
+      };
+    case 'recharge':
+      return {
+        usdAmount: order.rechargeOrder?.usdAmount,
+        exchangeRate: order.rechargeOrder?.exchangeRate,
+        giftCardCode: order.rechargeOrder?.giftCardCode,
+      };
+    default:
+      return {};
+  }
+}
 

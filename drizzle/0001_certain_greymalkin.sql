@@ -1,0 +1,1 @@
+ALTER TABLE `recharge_order` MODIFY COLUMN `applied_account` varchar(255);

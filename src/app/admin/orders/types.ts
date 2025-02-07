@@ -30,11 +30,7 @@ export interface BaseOrder {
 export interface AccelerationOrder extends BaseOrder {
   type: 'acceleration';
   plan: 'monthly' | 'quarterly' | 'yearly';
-  configuration?: {
-    server: string;
-    port: number;
-    password: string;
-  };
+  configuration?: string;
 }
 
 // 美区账号订单

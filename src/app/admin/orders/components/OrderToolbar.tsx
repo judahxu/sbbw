@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, Download, Filter } from 'lucide-react';
-import { OrderType, OrderStatus } from '@/types/orders';
+import { OrderType, OrderStatus } from '../types';
 
 interface OrderToolbarProps {
   onSearch: (query: string) => void;
@@ -63,7 +63,7 @@ export function OrderToolbar({
           </SelectContent>
         </Select>
 
-        <Button variant="outline" onClick={onAdvancedFilter}>
+        {/* <Button variant="outline" onClick={onAdvancedFilter}>
           <Filter className="h-4 w-4 mr-2" />
           高级筛选
         </Button>
@@ -71,7 +71,7 @@ export function OrderToolbar({
         <Button variant="outline" onClick={onExport}>
           <Download className="h-4 w-4 mr-2" />
           导出数据
-        </Button>
+        </Button> */}
       </div>
     </div>
   );

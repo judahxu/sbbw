@@ -11,6 +11,8 @@ interface WechatPayResponse {
   prepay_id?: string;
   nonce_str?: string;
   sign?: string;
+  out_trade_no: string;
+  transaction_id: string;
 }
 
 export class WechatPay {
@@ -29,11 +31,11 @@ export class WechatPay {
     this.appid = config.appid;
     this.mchId = config.mchId;
     this.apiKey = config.apiKey;
-    this.notifyUrl = config.notifyUrl || 'https://coijing.com/api/pay/notify';
+    this.notifyUrl = config.notifyUrl ?? 'https://coijing.com/api/pay/notify';
   }
 
   // 生成随机字符串
-  private generateNonceStr(length: number = 32): string {
+  private generateNonceStr(length = 32): string {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     let noceStr = '';
     for (let i = 0; i < length; i++) {
@@ -123,6 +125,10 @@ export class WechatPay {
 
       console.log('响应数据:', response.data);
 
+      if (typeof response.data !== 'string') {
+        throw new Error('Expected XML string response from WeChat API');
+      }
+
       const result = await this.xmlToObject(response.data);
 
       if (!result) {
@@ -130,11 +136,11 @@ export class WechatPay {
       }
 
       if (result.return_code === 'FAIL') {
-        throw new Error(`微信支付返回错误: ${result.return_msg || '未知错误'}`);
+        throw new Error(`微信支付返回错误: ${result.return_msg ?? '未知错误'}`);
       }
 
       if (result.result_code === 'FAIL') {
-        throw new Error(`微信支付业务错误: ${result.err_code_des || '未知错误'}`);
+        throw new Error(`微信支付业务错误: ${result.err_code_des ?? '未知错误'}`);
       }
 
       return {
@@ -143,9 +149,12 @@ export class WechatPay {
         nonceStr: result.nonce_str,
         sign: result.sign,
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('统一下单请求失败:', error);
-      throw new Error(`支付下单失败: ${error.message}`);
+        const errorMessage = error instanceof Error 
+        ? error.message 
+        : '未知错误';
+      throw new Error(`支付下单失败: ${errorMessage}`);
     }
   }
 

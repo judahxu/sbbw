@@ -29,8 +29,11 @@ export default function OrdersPage() {
     processRecharge,
     processAppleId,
     processAcceleration,
-    cancelOrder,
-    getOrderDetail
+    // cancelOrder,
+    getOrderDetail,
+    selectedOrderDetails,
+    isLoadingDetails,
+    setSelectedOrderId
   } = useOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -58,8 +61,9 @@ export default function OrdersPage() {
   // 查看订单详情
   const handleViewDetails = async (order: Order) => {
     try {
-      const details = await getOrderDetail(order.id);
-      setSelectedOrder(details);
+      // const details = await getOrderDetail(order.id);
+       setSelectedOrderId(order.id);
+      // setSelectedOrder(details);
       setShowDetailModal(true);
     } catch (error) {
       console.error('Failed to get order details:', error);
@@ -71,7 +75,7 @@ export default function OrdersPage() {
     if (!selectedOrder) return;
     
     try {
-      await processRecharge({
+      processRecharge({
         orderId: selectedOrder.id,
         giftCardCode,
         remark
@@ -92,7 +96,7 @@ export default function OrdersPage() {
     if (!selectedOrder) return;
 
     try {
-      await processAppleId({
+      processAppleId({
         orderId: selectedOrder.id,
         ...data
       });
@@ -106,20 +110,14 @@ export default function OrdersPage() {
   // 处理加速服务订单
   const handleAccelerationConfirm = async (data: {
     server: string;
-    port: number;
-    password: string;
     remark?: string;
   }) => {
     if (!selectedOrder) return;
 
     try {
-      await processAcceleration({
+      processAcceleration({
         orderId: selectedOrder.id,
-        configuration: {
-          server: data.server,
-          port: data.port,
-          password: data.password
-        },
+        configuration: data.server,
         remark: data.remark
       });
       setShowAccelerationModal(false);
@@ -156,7 +154,7 @@ export default function OrdersPage() {
         orders={orders}
         onProcess={handleProcess}
         onViewDetails={handleViewDetails}
-        onCancel={cancelOrder}
+        // onCancel={cancelOrder}
         currentPage={page}
         pageSize={pageSize}
         total={total}
@@ -211,10 +209,11 @@ export default function OrdersPage() {
         />
       )}
 
-      {selectedOrder && (
+      {selectedOrderDetails?.id && (
         <OrderDetailModal
           open={showDetailModal}
-          order={selectedOrder}
+          order={selectedOrderDetails}
+          isLoading={isLoadingDetails}
           onClose={() => {
             setShowDetailModal(false);
             setSelectedOrder(null);

@@ -7,8 +7,117 @@ import type {
   OrderType, 
   OrderStatus,
   ResourcePool,
-  OrderStats 
+  OrderStats,
+  AccelerationOrder,
+  AppleIdOrder,
+  RechargeOrder
 } from "../types";
+
+// Update API response type to handle Date objects
+interface ApiOrderResponse {
+  id: string;
+  type: OrderType;
+  userId: string;
+  userEmail?: string;
+  user?: {
+    email: string;
+  };
+  amount: string | number;
+  status: OrderStatus;
+  createTime?: string;
+  createdAt?: Date | null;  // Updated to handle Date
+  updateTime?: string;
+  updatedAt?: Date | null;  // Updated to handle Date
+  remark?: string;
+  product?: {
+    name: string;
+    description: string;
+  };
+  accelerationOrder?: {
+    plan: 'monthly' | 'quarterly' | 'yearly';
+    configuration?: string;
+  };
+  appleIdOrder?: {
+    email?: string;
+    password?: string;
+  };
+  rechargeOrder?: {
+    usdAmount: string | number;
+    exchangeRate: string | number;
+    giftCardCode?: string;
+    appliedAccount: string;
+  };
+}
+
+function mapApiResponseToOrder(apiOrder: unknown): Order {
+  // First cast to unknown, then to our expected type
+  const typedOrder = apiOrder as ApiOrderResponse;
+  
+  // Helper functions
+  const parseAmount = (value: string | number | undefined): number => {
+    if (typeof value === 'string') {
+      return parseFloat(value) || 0;
+    }
+    return value ?? 0;
+  };
+
+  const formatDate = (date: Date | string | null | undefined): string => {
+    if (date instanceof Date) {
+      return date.toISOString();
+    }
+    if (typeof date === 'string') {
+      return date;
+    }
+    return new Date().toISOString();
+  };
+
+  const baseOrder = {
+    id: typedOrder.id,
+    type: typedOrder.type,
+    userId: typedOrder.userId,
+    userEmail: typedOrder.userEmail ?? typedOrder.user?.email ?? '',
+    amount: parseAmount(typedOrder.amount),
+    status: typedOrder.status,
+    createTime: typedOrder.createTime ?? formatDate(typedOrder.createdAt),
+    updateTime: typedOrder.updateTime ?? formatDate(typedOrder.updatedAt),
+    remark: typedOrder.remark,
+  };
+
+  switch (typedOrder.type) {
+    case 'acceleration':
+      return {
+        ...baseOrder,
+        type: 'acceleration',
+        plan: typedOrder.accelerationOrder?.plan ?? 'monthly',
+        configuration: typedOrder.accelerationOrder?.configuration,
+      } as AccelerationOrder;
+
+    case 'appleId':
+      return {
+        ...baseOrder,
+        type: 'appleId',
+        account: typedOrder.appleIdOrder ? {
+          email: typedOrder.appleIdOrder.email ?? '',
+          password: typedOrder.appleIdOrder.password ?? '',
+        } : undefined,
+      } as AppleIdOrder;
+
+    case 'recharge':
+      return {
+        ...baseOrder,
+        type: 'recharge',
+        usdAmount: parseAmount(typedOrder.rechargeOrder?.usdAmount),
+        exchangeRate: parseAmount(typedOrder.rechargeOrder?.exchangeRate),
+        giftCardCode: typedOrder.rechargeOrder?.giftCardCode,
+        appliedAccount: typedOrder.rechargeOrder?.appliedAccount ?? '',
+      } as RechargeOrder;
+
+    default:
+      throw new Error(`Unknown order type: ${typedOrder.type as string}`);
+  }
+}
+
+
 
 interface OrderFilters {
   type?: OrderType | 'all';
@@ -22,6 +131,7 @@ export function useOrders() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filters, setFilters] = useState<OrderFilters>({});
+  
   
   // 获取订单列表
   const {
@@ -37,6 +147,8 @@ export function useOrders() {
     ...(filters.startDate ? { startDate: filters.startDate } : {}),
     ...(filters.endDate ? { endDate: filters.endDate } : {})
   });
+  const orders = ordersData?.orders.map((order) => mapApiResponseToOrder(order as ApiOrderResponse)) ?? [];
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   // 获取订单统计
   const { data: statsData } = api.order.getOrderStats.useQuery(undefined, {
@@ -44,6 +156,12 @@ export function useOrders() {
     refetchInterval: 5 * 60 * 1000
   });
 
+  const { data: selectedOrderDetails, isLoading: isLoadingDetails } = api.order.getDetails.useQuery(
+    { orderId: selectedOrderId! },
+    {
+      enabled: !!selectedOrderId
+    }
+  );
   // // 获取资源池状态
   // const { data: poolStatus } = api.config.getResourcePoolStatus.useQuery(undefined, {
   //   // 1分钟刷新一次资源池状态
@@ -54,7 +172,7 @@ export function useOrders() {
   const { mutate: processRecharge } = api.order.processRechargeOrder.useMutation({
     onSuccess: () => {
       toast.success("充值订单处理成功");
-      refetch();
+      void refetch();
     },
     onError: (error) => {
       toast.error(`处理失败: ${error.message}`);
@@ -65,7 +183,7 @@ export function useOrders() {
   const { mutate: processAppleId } = api.order.processAppleIdOrder.useMutation({
     onSuccess: () => {
       toast.success("账号订单处理成功");
-      refetch();
+      void refetch();
     },
     onError: (error) => {
       toast.error(`处理失败: ${error.message}`);
@@ -76,7 +194,7 @@ export function useOrders() {
   const { mutate: processAcceleration } = api.order.processAccelerationOrder.useMutation({
     onSuccess: () => {
       toast.success("加速服务订单处理成功");
-      refetch();
+      void refetch();
     },
     onError: (error) => {
       toast.error(`处理失败: ${error.message}`);
@@ -87,7 +205,7 @@ export function useOrders() {
   const { mutate: cancelOrder } = api.order.cancelOrder.useMutation({
     onSuccess: () => {
       toast.success("订单已取消");
-      refetch();
+      void refetch();
     },
     onError: (error) => {
       toast.error(`取消失败: ${error.message}`);
@@ -96,12 +214,13 @@ export function useOrders() {
 
   // 获取订单详情
   const getOrderDetail = async (orderId: string) => {
-    try {
-      return await api.order.getOrderDetail.query({ orderId });
-    } catch (error) {
-      toast.error('获取订单详情失败');
-      throw error;
-    }
+    setSelectedOrderId(orderId);
+    // try {
+    //   return await api.order.getDetails.useQuery({ orderId });
+    // } catch (error) {
+    //   toast.error('获取订单详情失败');
+    //   throw error;
+    // }
   };
 
   // 更新筛选条件
@@ -111,7 +230,7 @@ export function useOrders() {
   };
 
   return {
-    orders: ordersData?.orders ?? [],
+    orders,
     total: ordersData?.total ?? 0,
     page,
     pageSize,
@@ -127,6 +246,9 @@ export function useOrders() {
     processAcceleration,
     cancelOrder,
     getOrderDetail,
-    refetch
+    refetch,
+    selectedOrderDetails: selectedOrderDetails ? mapApiResponseToOrder(selectedOrderDetails as ApiOrderResponse) : null,
+    isLoadingDetails,
+    setSelectedOrderId
   };
 }

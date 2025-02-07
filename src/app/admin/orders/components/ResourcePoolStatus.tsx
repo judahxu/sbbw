@@ -2,7 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
-import { ResourcePool } from '@/types/orders';
+import { ResourcePool } from '../types';
 
 interface ResourcePoolStatusProps {
   pools: ResourcePool[];

@@ -14,6 +14,7 @@ interface PricingTier {
   originalPrice?: number;
   unit: string;
   recommended?: boolean;
+  cycle: 'monthly' | 'quarterly' | 'yearly';
 }
 
 interface PricingTiersProps {

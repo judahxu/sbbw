@@ -81,3 +81,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media (width >= 1280px) {
+  .container {
+      max-width: 100%;
+  }
+}

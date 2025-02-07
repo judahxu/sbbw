@@ -15,6 +15,10 @@ declare module "next-auth" {
       // emailVerified: Date | null;
     } & DefaultSession["user"];
   }
+   // 扩展User接口以包含role属性
+   interface User {
+    role?: string;
+  }
 }
 
 
@@ -73,7 +77,7 @@ export const authConfig = {
           };
         } catch (error) {
           if (error instanceof z.ZodError) {
-            throw new Error(error.errors[0].message);
+            throw new Error(error.errors[0]?.message);
           }
           throw error;
         }
@@ -86,15 +90,15 @@ export const authConfig = {
       ...session,
       user: {
         ...session.user,
-        id: token.id,
-        role: token.role,
+        id: token.id as string,
+        role: token.role as string,
       },
     }),
     // 添加JWT callback以支持credentials provider
     jwt: ({ token, user }) => {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
+        token.role = user.role ?? "user";
       }
       return token;
     },

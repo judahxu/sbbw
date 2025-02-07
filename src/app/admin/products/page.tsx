@@ -10,8 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { BadgeDollarSign, DollarSign, History, Settings, RefreshCcw } from 'lucide-react';
+import { BadgeDollarSign, DollarSign, History, Settings, RefreshCcw, Loader2 } from 'lucide-react';
 import { api } from '@/trpc/react';
+
+interface CronResponse {
+  status: boolean;
+}
 
 // 价格卡片组件
 const PriceCard = ({ 
@@ -109,7 +113,7 @@ export default function ProductPage() {
   const handleInitCron = async () => {
     try {
       const response = await fetch('/api/cron');
-      const data = await response.json();
+      const data = (await response.json()) as CronResponse;
       if (data.status) {
         // toast.success('定时任务初始化成功');
       }
@@ -117,7 +121,12 @@ export default function ProductPage() {
       // toast.error('定时任务初始化失败');
     }
   };
-  handleInitCron()
+ 
+  React.useEffect(() => {
+    void handleInitCron();
+  }, []); // Move handleInitCron call to useEffect
+
+
   // 获取所有配置
   const { data: configs, isLoading, refetch } = api.config.getAll.useQuery();
   
@@ -125,7 +134,7 @@ export default function ProductPage() {
   const { mutate: updateConfig } = api.config.update.useMutation({
     onSuccess: () => {
       toast.success('更新成功');
-      refetch();
+      void refetch();
     },
     onError: (error) => {
       toast.error(`更新失败: ${error.message}`);
@@ -136,7 +145,7 @@ export default function ProductPage() {
   const { mutate: updateRate } = api.config.updateExchangeRate.useMutation({
     onSuccess: () => {
       toast.success('汇率更新成功');
-      refetch();
+      void refetch();
     },
     onError: (error) => {
       toast.error(`汇率更新失败: ${error.message}`);
@@ -147,7 +156,7 @@ export default function ProductPage() {
   const { mutate: updateFee } = api.config.updateServiceFee.useMutation({
     onSuccess: () => {
       toast.success('服务费更新成功');
-      refetch();
+      void refetch();
     },
     onError: (error) => {
       toast.error(`服务费更新失败: ${error.message}`);
@@ -160,7 +169,14 @@ export default function ProductPage() {
   const serviceFeeConfig = configs?.find(config => config.type === 'service_fee');
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary/80" />
+          <p className="text-sm text-muted-foreground">加载中...</p>
+        </div>
+      </div>
+    );
   }
 
   const handleUpdateConfig = (data: { id: string; original_price: number; current_price: number }) => {
@@ -261,10 +277,10 @@ export default function ProductPage() {
               <PriceCard
                 id={appstoreConfig.id}
                 title={appstoreConfig.name}
-                originalPrice={appstoreConfig.original_price!}
-                currentPrice={appstoreConfig.current_price!}
+                originalPrice={Number(appstoreConfig.original_price)}
+                currentPrice={Number(appstoreConfig.current_price)}
                 cycle={appstoreConfig.cycle!}
-                lastUpdated={appstoreConfig.updated_at}
+                lastUpdated={appstoreConfig.updated_at.toLocaleTimeString()}
                 onUpdate={handleUpdateConfig}
               />
             )}
@@ -287,8 +303,8 @@ export default function ProductPage() {
                       value={serviceFeeConfig?.fee_percentage ?? 5}
                       onChange={(e) => handleUpdateFee({ 
                         percentage: Number(e.target.value),
-                        minimum_fee: serviceFeeConfig?.minimum_fee,
-                        maximum_fee: serviceFeeConfig?.maximum_fee
+                        minimum_fee: Number(serviceFeeConfig?.minimum_fee),
+                        maximum_fee: Number(serviceFeeConfig?.maximum_fee)
                       })}
                     />
                   </div>
@@ -298,9 +314,9 @@ export default function ProductPage() {
                       type="number" 
                       value={serviceFeeConfig?.minimum_fee ?? 1}
                       onChange={(e) => handleUpdateFee({
-                        percentage: serviceFeeConfig?.fee_percentage ?? 5,
+                        percentage: serviceFeeConfig?.fee_percentage?Number(serviceFeeConfig?.fee_percentage): 5,
                         minimum_fee: Number(e.target.value),
-                        maximum_fee: serviceFeeConfig?.maximum_fee
+                        maximum_fee: Number(serviceFeeConfig?.maximum_fee)
                       })}
                     />
                   </div>
@@ -310,8 +326,8 @@ export default function ProductPage() {
                       type="number" 
                       value={serviceFeeConfig?.maximum_fee ?? 100}
                       onChange={(e) => handleUpdateFee({
-                        percentage: serviceFeeConfig?.fee_percentage ?? 5,
-                        minimum_fee: serviceFeeConfig?.minimum_fee,
+                        percentage: Number(serviceFeeConfig?.fee_percentage),
+                        minimum_fee: Number(serviceFeeConfig?.minimum_fee),
                         maximum_fee: Number(e.target.value)
                       })}
                     />

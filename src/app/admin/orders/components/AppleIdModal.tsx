@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { AppleIdOrder } from '@/types/orders';
+import { AppleIdOrder } from '../types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,8 +113,8 @@ export function AppleIdModal({
             </div>
           </div>
 
-          <DialogFooter className="flex justify-between sm:justify-between">
-            <div className="flex gap-2">
+          <DialogFooter>
+            {/* <div className="flex gap-2">
               <Button
                 variant="outline"
                 onClick={() => setShowManualAlert(true)}
@@ -122,7 +122,7 @@ export function AppleIdModal({
               >
                 转人工处理
               </Button>
-            </div>
+            </div> */}
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -142,7 +142,7 @@ export function AppleIdModal({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={showManualAlert} onOpenChange={setShowManualAlert}>
+      {/* <AlertDialog open={showManualAlert} onOpenChange={setShowManualAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认转人工处理？</AlertDialogTitle>
@@ -161,7 +161,7 @@ export function AppleIdModal({
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog> */}
     </>
   );
 }

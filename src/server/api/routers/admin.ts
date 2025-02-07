@@ -1,7 +1,7 @@
 // src/server/api/routers/admin.ts
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { users, serviceAccounts, apiKeys, acceleratorServices } from "~/server/db/schema";
+import { users} from "~/server/db/schema";
 import { desc, eq, like, and, gte, lte, sql } from "drizzle-orm";
 
 // 查询参数验证schema
@@ -45,12 +45,15 @@ export const adminRouter = createTRPCRouter({
       }
       
       // 计算总数
-      const [{ count }] = await ctx.db
+      const result  = await ctx.db
         .select({ 
           count: sql<number>`count(*)` 
         })
         .from(users)
         .where(and(...whereConditions));
+
+        const [{ count } = { count: 0 }] = result || [];
+
       
       // 查询用户列表
       const userList = await ctx.db

@@ -60,15 +60,15 @@ export const serverAccountRouter = createTRPCRouter({
           .where(and(...conditions)),
       ]);
 
-      const total = totalQuery[0].count;
+      const total = totalQuery[0]?.count;
 
       return {
         data: accounts,
         pagination: {
           page,
           pageSize,
-          total,
-          totalPages: Math.ceil(total / pageSize),
+          total: total ?? 0,
+          totalPages: Math.ceil((total ?? 0) / pageSize),
         },
       };
     }),
@@ -113,7 +113,7 @@ export const serverAccountRouter = createTRPCRouter({
         .where(eq(serverAccounts.id, input.id))
         .limit(1);
 
-      if (!account.length || account[0].status !== "expired") {
+      if (!account.length || account[0]?.status !== "expired") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "只能删除已过期的账号",

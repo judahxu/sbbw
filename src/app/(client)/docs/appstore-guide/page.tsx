@@ -20,7 +20,7 @@ export default function RechargePage() {
       }
     };
 
-    fetchContent();
+    void fetchContent();
   }, []);
 
   return <MarkdownViewer content={content} />;

@@ -46,7 +46,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   sessions: many(sessions),
   orders: many(orders),
-  processedOrders: many(orders, { relationName: "processedByUser" }),
+  // processedOrders: many(orders, { relationName: "processedByUser" }),
 }));
 
 export const accounts = createTable(
@@ -219,6 +219,13 @@ export const appleAccountsRelations = relations(appleAccounts, ({ one }) => ({
 }));
 
 
+export const serverAccountsRelations = relations(serverAccounts, ({ one }) => ({
+  user: one(users, {
+    fields: [serverAccounts.assignedTo],
+    references: [users.id],
+  }),
+}));
+
 
 // 配置类型枚举
 export const ConfigType = {
@@ -313,8 +320,7 @@ export const orders = createTable("order", {
     .notNull(),
   
   // 处理信息
-  processedBy: varchar("processed_by", { length: 255 })
-    .references(() => users.id),
+  processedBy: varchar("processed_by", { length: 255 }),
   processedAt: timestamp("processed_at", {
     mode: "date",
     fsp: 3,
@@ -351,8 +357,7 @@ export const rechargeOrders = createTable("recharge_order", {
     .notNull(),
   
   // 充值账号
-  appliedAccount: varchar("applied_account", { length: 255 })
-    .notNull(),
+  appliedAccount: varchar("applied_account", { length: 255 }),
   
   // 礼品卡代码
   giftCardCode: varchar("gift_card_code", { length: 255 }),
@@ -384,11 +389,7 @@ export const accelerationOrders = createTable("acceleration_order", {
     .notNull(),
   
   // 服务配置
-  configuration: json("configuration").$type<{
-    server: string;
-    port: number;
-    password: string;
-  }>(),
+  configuration: varchar("configuration", { length: 255 }),
   
   // 服务期限
   startDate: timestamp("start_date", {
@@ -407,10 +408,10 @@ export const ordersRelations = relations(orders, ({ one,many }) => ({
     fields: [orders.userId],
     references: [users.id],
   }),
-  processedByUser: one(users, {
-    fields: [orders.processedBy],
-    references: [users.id],
-  }),
+  // processedByUser: one(users, {
+  //   fields: [orders.processedBy],
+  //   references: [users.id],
+  // }),
   rechargeOrder: one(rechargeOrders, {
     fields: [orders.id],
     references: [rechargeOrders.orderId],
@@ -449,3 +450,12 @@ export const paymentRecords = createTable("payment_record", {
   refundedAt: timestamp("refunded_at"),
   transactionId: varchar("transaction_id", { length: 64 }),
 });
+
+
+// 添加关系
+export const paymentRecordsRelations = relations(paymentRecords, ({ one }) => ({
+  order: one(orders, {
+    fields: [paymentRecords.orderId],
+    references: [orders.id],
+  }),
+}));

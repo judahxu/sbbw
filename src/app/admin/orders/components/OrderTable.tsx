@@ -15,7 +15,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
-  Ban
+  Ban,
+  LucideIcon
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -38,7 +39,7 @@ interface OrderTableProps {
   orders: Order[];
   onProcess: (order: Order) => void;
   onViewDetails: (order: Order) => void;
-  onCancel: (order: Order) => void;
+  // onCancel: (order: Order) => void;
   currentPage: number;
   pageSize: number;
   total: number;
@@ -51,7 +52,7 @@ export function OrderTable({
   orders,
   onProcess,
   onViewDetails,
-  onCancel,
+  // onCancel,
   currentPage,
   pageSize,
   total,
@@ -61,11 +62,17 @@ export function OrderTable({
 }: OrderTableProps) {
   // 获取状态对应的徽章样式
   const getStatusBadge = (status: Order['status']) => {
-    const statusConfig = {
+    type BadgeVariant = 'secondary' | 'default' | 'destructive' | 'outline';
+  
+    const statusConfig: Record<Order['status'], { 
+      color: BadgeVariant, 
+      icon: LucideIcon, 
+      text: string 
+    }> = {
       pending_payment: { color: 'secondary', icon: Clock, text: '待支付' },
       paid: { color: 'default', icon: CheckCircle2, text: '已支付' },
-      processing: { color: 'default', icon: Clock, text: '处理中' },
-      completed: { color: 'success', icon: CheckCircle2, text: '已完成' },
+      processing: { color: 'secondary', icon: Clock, text: '处理中' },
+      completed: { color: 'default', icon: CheckCircle2, text: '已完成' }, // Changed from 'success'
       failed: { color: 'destructive', icon: AlertCircle, text: '失败' },
       cancelled: { color: 'outline', icon: Ban, text: '已取消' },
       refunded: { color: 'outline', icon: CheckCircle2, text: '已退款' },
@@ -75,7 +82,7 @@ export function OrderTable({
     const Icon = config.icon;
 
     return (
-      <Badge variant={config.color as any} className="flex items-center gap-1">
+      <Badge variant={config.color} className="flex items-center gap-1">
         <Icon className="h-3 w-3" />
         <span>{config.text}</span>
       </Badge>
@@ -107,7 +114,7 @@ export function OrderTable({
 
   // 判断是否可以处理订单
   const canProcessOrder = (order: Order) => {
-    return order.status === 'paid' || order.status === 'failed';
+    return order.status === 'paid' || order.status === 'processing';
   };
 
   // 判断是否可以取消订单
@@ -137,7 +144,7 @@ export function OrderTable({
 
     // 计算显示的页码范围
     let startPage = Math.max(2, currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPages - 1, startPage + maxVisiblePages - 1);
+    const endPage = Math.min(totalPages - 1, startPage + maxVisiblePages - 1);
     
     // 调整以确保显示足够的页码
     if (endPage - startPage < maxVisiblePages - 1) {
@@ -219,40 +226,24 @@ export function OrderTable({
               <TableCell>{getStatusBadge(order.status)}</TableCell>
               <TableCell>{new Date(order.createTime).toLocaleString()}</TableCell>
               <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>订单操作</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {canProcessOrder(order) && (
-                      <DropdownMenuItem 
-                        onClick={() => onProcess(order)}
-                      >
-                        处理订单
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem 
-                      onClick={() => onViewDetails(order)}
+                <div className="flex justify-end gap-2">
+                  {canProcessOrder(order) && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => onProcess(order)}
                     >
-                      查看详情
-                    </DropdownMenuItem>
-                    {canCancelOrder(order) && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => onCancel(order)}
-                          className="text-red-600"
-                        >
-                          取消订单
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      处理订单
+                    </Button>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => onViewDetails(order)}
+                  >
+                    查看详情
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -283,7 +274,7 @@ export function OrderTable({
          <PaginationItem>
            <PaginationPrevious
              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-             disabled={currentPage === 1}
+             aria-disabled={currentPage === 1}
            />
          </PaginationItem>
          
@@ -292,7 +283,7 @@ export function OrderTable({
          <PaginationItem>
            <PaginationNext
              onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-             disabled={currentPage === totalPages}
+             aria-disabled={currentPage === totalPages}
            />
          </PaginationItem>
        </PaginationContent>

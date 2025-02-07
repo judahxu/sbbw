@@ -10,9 +10,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Upload, FileText, AlertCircle, X ,RotateCw } from 'lucide-react';
+import { Upload, FileText, AlertCircle, X, RotateCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 interface BatchImportDialogProps {
   open: boolean;
@@ -31,90 +31,94 @@ export function BatchImportDialog({
   onOpenChange,
   onSubmit
 }: BatchImportDialogProps) {
-  // 状态管理
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<PreviewData[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 文件处理
+  const downloadTemplate = () => {
+    const template = XLSX.utils.book_new();
+    const data = [
+      ['name', 'config'],
+      ['server-us-1', 'server=us1.example.com;port=443;password=abc123']
+    ];
+    
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(template, worksheet, 'Template');
+    XLSX.writeFile(template, 'server-account-template.xlsx');
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
     // 检查文件类型
-    if (!selectedFile.name.endsWith('.csv')) {
-      setError('请上传 CSV 文件');
+    if (!selectedFile.name.endsWith('.xlsx') && !selectedFile.name.endsWith('.xls')) {
+      setError('请上传 Excel 文件 (.xlsx or .xls)');
       return;
     }
 
     setFile(selectedFile);
     setError(null);
 
-    // 读取文件预览
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const text = e.target?.result as string;
-        
-        // 解析 CSV
-        Papa.parse(text, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            // 验证数据格式
-            const data = results.data as PreviewData[];
-            if (!data.length) {
-              setError('文件内容为空');
-              return;
-            }
-
-            // 验证必要字段
-            if (!data[0].hasOwnProperty('name') || !data[0].hasOwnProperty('config')) {
-              setError('CSV 文件必须包含 name 和 config 列');
-              return;
-            }
-
-            // 预览前10条数据
-            setPreviewData(data.slice(0, 10));
-          },
-          error: (error) => {
-            setError(`解析文件失败: ${error.message}`);
-          }
-        });
-      } catch (error) {
-        setError('解析文件失败');
-        console.error('File parsing error:', error);
+    try {
+      const buffer = await selectedFile.arrayBuffer();
+      const workbook = XLSX.read(buffer);
+      const firstSheetName = workbook.SheetNames?.[0] ?? '';
+      const worksheet = workbook.Sheets[firstSheetName];
+      if (!worksheet) {
+        throw new Error('无法读取工作表');
       }
-    };
+      const jsonData = XLSX.utils.sheet_to_json<PreviewData>(worksheet);
 
-    reader.readAsText(selectedFile);
+      // 验证数据格式
+      if (!jsonData.length) {
+        setError('文件内容为空');
+        return;
+      }
+      const hasRequiredFields = jsonData.every(item => 
+        item.name && item.config
+      );
+
+      if (!hasRequiredFields) {
+        throw new Error('数据格式不正确，请确保包含名称和配置信息');
+      }
+      // 验证必要字段
+      // if (!jsonData[0].hasOwnProperty('name') || !jsonData[0].hasOwnProperty('config')) {
+      //   setError('Excel 文件必须包含 name 和 config 列');
+      //   return;
+      // }
+      setPreviewData(jsonData);
+      // 预览前10条数据
+      // setPreviewData(jsonData.slice(0, 10));
+    } catch (error) {
+      setError('解析文件失败');
+      console.error('File parsing error:', error);
+    }
   };
 
-  // 提交处理
   const handleSubmit = async () => {
     if (!file || !previewData) return;
 
     setIsSubmitting(true);
     try {
-      const text = await file.text();
-      const results = await new Promise<Papa.ParseResult<PreviewData>>((resolve, reject) => {
-        Papa.parse(text, {
-          header: true,
-          skipEmptyLines: true,
-          complete: resolve,
-          error: reject
-        });
-      });
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer);
+      const firstSheetName = workbook.SheetNames?.[0] ?? '';
+      const worksheet = workbook.Sheets[firstSheetName];
+      if (!worksheet) {
+        throw new Error('无法读取工作表');
+      }
+      const jsonData = XLSX.utils.sheet_to_json<PreviewData>(worksheet);
 
       // 转换数据格式
-      const accounts = results.data.map(row => ({
+      const accounts = jsonData.map(row => ({
         name: row.name,
         config: row.config
       }));
 
-      await onSubmit(accounts);
+      onSubmit(accounts);
       
       // 重置状态
       setFile(null);
@@ -130,7 +134,6 @@ export function BatchImportDialog({
     }
   };
 
-  // 关闭对话框时重置状态
   const handleOpenChange = (open: boolean) => {
     if (!open) {
       setFile(null);
@@ -151,6 +154,14 @@ export function BatchImportDialog({
         </DialogHeader>
         
         <div className="space-y-4">
+          {/* 模板下载 */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">首次使用？下载导入模板：</span>
+            <Button variant="outline" size="sm" onClick={downloadTemplate}>
+              下载模板
+            </Button>
+          </div>
+
           {/* 文件上传区域 */}
           <div className="space-y-2">
             <Label>上传文件</Label>
@@ -158,12 +169,12 @@ export function BatchImportDialog({
               <label className="flex flex-col items-center cursor-pointer">
                 <Upload className="h-8 w-8 text-gray-400" />
                 <span className="mt-2 text-sm text-gray-600">
-                  点击或拖拽上传 CSV 文件
+                  点击或拖拽上传 Excel 文件
                 </span>
                 <input
                   type="file"
                   className="hidden"
-                  accept=".csv"
+                  accept=".xlsx,.xls"
                   onChange={handleFileChange}
                   ref={fileInputRef}
                   disabled={isSubmitting}

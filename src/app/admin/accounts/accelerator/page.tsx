@@ -43,7 +43,8 @@ export default function ServerAccountsPage() {
       status: status === 'all' ? undefined : status,
     },
     {
-      keepPreviousData: true
+      staleTime: 5000, // 数据在5秒内不会被认为是过期的
+      // cacheTime: 10000, // 数据在缓存中保留10秒
     }
   );
 
@@ -52,7 +53,7 @@ export default function ServerAccountsPage() {
     onSuccess: () => {
       toast.success('创建成功');
       setShowCreateDialog(false);
-      utils.serverAccount.list.invalidate();
+      void utils.serverAccount.list.invalidate();
     },
     onError: (error) => {
       toast.error(`创建失败: ${error.message}`);
@@ -63,7 +64,7 @@ export default function ServerAccountsPage() {
   const { mutate: deleteAccount } = api.serverAccount.delete.useMutation({
     onSuccess: () => {
       toast.success('删除成功');
-      utils.serverAccount.list.invalidate();
+      void utils.serverAccount.list.invalidate();
     },
     onError: (error) => {
       toast.error(`删除失败: ${error.message}`);
@@ -75,7 +76,7 @@ export default function ServerAccountsPage() {
     onSuccess: (result) => {
       toast.success(`导入成功，共导入 ${result.count} 条数据`);
       setShowImportDialog(false);
-      utils.serverAccount.list.invalidate();
+      void utils.serverAccount.list.invalidate();
     },
     onError: (error) => {
       toast.error(`导入失败: ${error.message}`);

@@ -8,34 +8,20 @@ export const paymentRouter = createTRPCRouter({
   createPayment: protectedProcedure
     .input(z.object({
       orderId: z.string(),
-      // 可选的备注信息
-      remark: z.string().optional(),
+      amount: z.string(),
+      description: z.string()
     }))
     .mutation(async ({ ctx, input }) => {
-      const { orderId, remark } = input;
+      const { orderId, amount  } = input;
 
       // 1. 验证订单存在且状态正确
       const order = await ctx.db.query.orders.findFirst({
         where: eq(orders.id, orderId),
       });
 
-      if (!order) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "订单不存在",
-        });
-      }
-
-      // 验证订单所属
-      if (order.userId !== ctx.session.user.id && ctx.session.user.role !== 'admin') {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "无权访问此订单",
-        });
-      }
-
+  
       // 验证订单状态
-      if (order.status !== 'pending_payment') {
+      if (!order || order.status !== 'pending_payment') {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "订单状态不正确",
@@ -56,8 +42,8 @@ export const paymentRouter = createTRPCRouter({
           amount: order.amount,
           status: 'pending',
           paymentMethod: 'wechat',
-          remark,
         });
+        
 
         // 5. 返回支付信息
         return {
@@ -94,12 +80,12 @@ export const paymentRouter = createTRPCRouter({
       }
 
       // 验证权限
-      if (payment.order.userId !== ctx.session.user.id && ctx.session.user.role !== 'admin') {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "无权查询此支付记录",
-        });
-      }
+      // if (payment.order.userId !== ctx.session.user.id && ctx.session.user.role !== 'admin') {
+      //   throw new TRPCError({
+      //     code: "FORBIDDEN",
+      //     message: "无权查询此支付记录",
+      //   });
+      // }
 
       return {
         status: payment.status,

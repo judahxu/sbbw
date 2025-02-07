@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { AccelerationOrder } from '@/types/orders';
+import { AccelerationOrder } from '../types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,8 +30,6 @@ interface AccelerationModalProps {
   onClose: () => void;
   onConfirm: (data: { 
     server: string; 
-    port: number; 
-    password: string; 
     remark?: string 
   }) => Promise<void>;
   onManualProcess?: () => void;
@@ -52,7 +50,7 @@ export function AccelerationModal({
   const [showManualAlert, setShowManualAlert] = useState(false);
 
   const handleSubmit = async () => {
-    if (!server.trim() || !port || !password.trim()) {
+    if (!server.trim()) {
       return;
     }
 
@@ -60,8 +58,6 @@ export function AccelerationModal({
       setIsSubmitting(true);
       await onConfirm({
         server: server.trim(),
-        port: parseInt(port),
-        password: password.trim(),
         remark
       });
       onClose();
@@ -105,34 +101,12 @@ export function AccelerationModal({
 
             {/* 配置信息输入 */}
             <div className="space-y-2">
-              <Label htmlFor="server">服务器地址</Label>
+              <Label htmlFor="server">配置信息</Label>
               <Input
                 id="server"
                 value={server}
                 onChange={(e) => setServer(e.target.value)}
-                placeholder="输入服务器地址"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="port">端口</Label>
-              <Input
-                id="port"
-                type="number"
-                value={port}
-                onChange={(e) => setPort(e.target.value)}
-                placeholder="输入端口号"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
-              <Input
-                id="password"
-                type="text"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="输入密码"
+                placeholder="输入配置信息"
               />
             </div>
 
@@ -149,8 +123,8 @@ export function AccelerationModal({
             </div>
           </div>
 
-          <DialogFooter className="flex justify-between sm:justify-between">
-            <div className="flex gap-2">
+          <DialogFooter>
+            {/* <div className="flex gap-2">
               <Button
                 variant="outline"
                 onClick={() => setShowManualAlert(true)}
@@ -158,7 +132,7 @@ export function AccelerationModal({
               >
                 转人工处理
               </Button>
-            </div>
+            </div> */}
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -169,7 +143,7 @@ export function AccelerationModal({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={!server.trim() || !port || !password.trim() || isSubmitting}
+                disabled={!server.trim() || isSubmitting}
               >
                 {isSubmitting ? '处理中...' : '确认提交'}
               </Button>
@@ -178,7 +152,7 @@ export function AccelerationModal({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={showManualAlert} onOpenChange={setShowManualAlert}>
+      {/* <AlertDialog open={showManualAlert} onOpenChange={setShowManualAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认转人工处理？</AlertDialogTitle>
@@ -197,7 +171,7 @@ export function AccelerationModal({
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog> */}
     </>
   );
 }

@@ -1,21 +1,20 @@
 // src/app/api/cron/route.ts
-import { useSession } from "next-auth/react";
-import { exchangeRateJob } from '~/server/cron';
-
-let isInitialized = false;
+import { initializeServer } from '~/server/services/init'
 
 export async function GET() {
-  // 检查session和权限
-  const { data: session, status } = useSession();
-  if (!session || session.user.role !== 'admin') {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      await initializeServer();
+    }
+    
+    return new Response(JSON.stringify({ status: 'ok' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Server initialization failed:', error);
+    return new Response(JSON.stringify({ status: 'error', message: 'Initialization failed' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
-
-  if (!isInitialized) {
-    exchangeRateJob.start();
-    isInitialized = true;
-    return Response.json({ status: 'Cron jobs started' });
-  }
-  
-  return Response.json({ status: 'Cron jobs already running' });
 }

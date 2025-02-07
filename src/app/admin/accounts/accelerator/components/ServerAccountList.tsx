@@ -37,10 +37,10 @@ interface ServerAccountListProps {
       name: string;
       config: string;
       status: string;
-      assignedTo?: string;
-      assignmentStart?: Date;
-      duration?: number;
-      assignmentEnd?: Date;
+      assignedTo?: string | null;
+      assignmentStart?: Date | null; // 修改这里
+      duration?: number | null; // 修改为 number | null
+      assignmentEnd?: Date | null;
     }>;
     pagination: {
       total: number;
@@ -120,10 +120,10 @@ export function ServerAccountList({
                 {account.config}
               </TableCell>
               <TableCell>{getStatusBadge(account.status)}</TableCell>
-              <TableCell>{account.assignedTo || '-'}</TableCell>
-              <TableCell>{formatDate(account.assignmentStart)}</TableCell>
-              <TableCell>{account.duration || '-'}</TableCell>
-              <TableCell>{formatDate(account.assignmentEnd)}</TableCell>
+              <TableCell>{account.assignedTo ?? '-'}</TableCell>
+              <TableCell>{formatDate(account.assignmentStart ?? undefined)}</TableCell>              
+              <TableCell>{account.duration ?? '-'}</TableCell>
+              <TableCell>{formatDate(account.assignmentEnd ?? undefined)}</TableCell>
               {/* <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -167,7 +167,7 @@ export function ServerAccountList({
             </SelectContent>
           </Select>
           <div className="text-sm text-gray-500">
-            共 {data?.pagination.total || 0} 条
+            共 {data?.pagination.total ?? 0} 条
           </div>
         </div>
 

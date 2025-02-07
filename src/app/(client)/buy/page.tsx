@@ -1,13 +1,12 @@
-// src/app/(client)/buy/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import WxPay from './WxPay';
+import { QRCodeSVG } from 'qrcode.react';
 import { api } from '@/trpc/react';
 import { toast } from 'sonner';
 
@@ -21,14 +20,20 @@ interface OrderDetails {
     description: string;
   };
 }
-
-export default function OrderConfirmPage() {
+interface PaymentApiResponse {
+  codeUrl: string;
+}
+ function OrderConfirmContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get('id');
 
+  // Payment states
   const [loading, setLoading] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [qrUrl, setQrUrl] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('pending');
+  const [paymentNo, setPaymentNo] = useState('');
 
   // Get order details
   const { data: order, isLoading, error } = api.order.getDetails.useQuery(
@@ -36,39 +41,65 @@ export default function OrderConfirmPage() {
     {
       enabled: !!orderId,
       retry: false,
-      onError: (error) => {
-        toast.error(`获取订单失败: ${error.message}`);
-      }
     }
   );
 
-  // Update order status
-  const { mutate: updateOrderStatus } = api.order.updateStatus.useMutation({
-    onSuccess: () => {
-      setShowPaymentDialog(false);
-      toast.success('支付成功');
-      // Redirect to order detail page
-      router.push(`/orders/${orderId}`);
+    // Payment status polling
+  const { data: paymentStatusData } = api.payment.queryPaymentStatus.useQuery(
+    { paymentNo },
+    {
+      enabled: Boolean(paymentNo),
+      refetchInterval: 3000,
+    }
+  );
+
+  // Auto-redirect if order is already paid
+  useEffect(() => {
+    if (order?.status === 'paid') {
+      setPaymentStatus('paid');
+      router.push('/record');
+    }
+  }, [order?.status, router, paymentStatusData?.status]);
+
+  // Create payment mutation
+  const { mutate: createPayment } = api.payment.createPayment.useMutation({
+    onSuccess: async (data) => {
+      setPaymentNo(data.paymentNo);
+      try {
+        const response = await fetch('/api/pay', {
+          method: 'POST',
+          body: JSON.stringify({
+            orderId: data.paymentNo,
+            amount: order?.amount,
+            description: order?.product.name
+          })
+        });
+        const paymentData = (await response.json()) as PaymentApiResponse;
+        setQrUrl(paymentData.codeUrl);
+      } catch (error) {
+        toast.error('创建支付二维码失败');
+      }
     },
     onError: (error) => {
-      toast.error(`更新订单状态失败: ${error.message}`);
+      toast.error(`创建支付订单失败: ${error.message}`);
     }
   });
 
+
+
+
   // Handle payment initiation
   const handlePayment = () => {
-    if (!order.id) return;
-    setShowPaymentDialog(true);
-  };
-
-  // Handle payment success
-  const handlePaymentSuccess = () => {
     if (!orderId) return;
-    updateOrderStatus({ 
+    setLoading(true);
+    setShowPaymentDialog(true);
+    createPayment({
       orderId,
-      status: 'paid'
+      amount: order!.amount,
+      description: order!.product.name
     });
   };
+
 
   if (isLoading) {
     return (
@@ -78,12 +109,12 @@ export default function OrderConfirmPage() {
     );
   }
 
-  if (error || !order) {
+  if (error ?? !order) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Alert variant="destructive">
           <AlertDescription>
-            {error?.message || '订单不存在'}
+            {error?.message ?? '订单不存在'}
           </AlertDescription>
         </Alert>
       </div>
@@ -92,12 +123,12 @@ export default function OrderConfirmPage() {
 
   return (
     <main className="flex flex-col items-center justify-start w-full">
+      {/* Order details section */}
       <div className="w-full max-w-2xl mt-16">
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           <div className="p-6">
             <h1 className="text-2xl font-bold mb-6 text-center">订单确认</h1>
             
-            {/* Order Details */}
             <div className="mb-8 space-y-4">
               <div className="flex justify-between items-center border-b pb-4">
                 <span className="text-gray-600">订单编号</span>
@@ -117,7 +148,6 @@ export default function OrderConfirmPage() {
               </div>
             </div>
 
-            {/* Payment Method */}
             <div className="mb-8">
               <h2 className="text-lg font-semibold mb-4">支付方式</h2>
               <div className="grid grid-cols-1 gap-4">
@@ -128,11 +158,10 @@ export default function OrderConfirmPage() {
               </div>
             </div>
 
-            {/* Submit Button */}
             <div className="flex justify-center">
               <Button
                 onClick={handlePayment}
-                // disabled={loading || order.status !== 'pending_payment'}
+                disabled={loading || order.status !== 'pending_payment'}
                 className="w-full md:w-auto"
               >
                 {loading ? (
@@ -148,7 +177,6 @@ export default function OrderConfirmPage() {
           </div>
         </div>
 
-        {/* Terms Notice */}
         <p className="text-center text-sm text-gray-500 mt-6">
           点击确认支付即表示您同意我们的
           <a href="/docs/terms" className="text-blue-500 hover:underline mx-1">服务条款</a>
@@ -158,21 +186,43 @@ export default function OrderConfirmPage() {
       </div>
 
       {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+      <Dialog open={showPaymentDialog} onOpenChange={()=>{
+        setShowPaymentDialog(false)
+        setQrUrl('')
+        setLoading(false)
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>请扫码支付</DialogTitle>
           </DialogHeader>
-          {order && (
-            <WxPay
-              orderId={order.id}
-              amount={Number(order.amount) * 100} // Convert to cents
-              description={order.product.name}
-              onSuccess={handlePaymentSuccess}
-            />
-          )}
+          <div className="text-center p-6">
+            {qrUrl && (
+              <div className="flex flex-col items-center">
+                <QRCodeSVG value={qrUrl} size={200} />
+                <div className="mt-4 font-medium">
+                  支付金额：<span className="text-red-500">￥{order.amount}</span>
+                </div>
+                <div className="mt-2 text-sm text-gray-500">
+                  {paymentStatus === 'pending' && '等待支付...'}
+                  {paymentStatus === 'SUCCESS' && '支付成功!'}
+                </div>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </main>
+  );
+}
+
+export default function OrderConfirmPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    }>
+      <OrderConfirmContent />
+    </Suspense>
   );
 }

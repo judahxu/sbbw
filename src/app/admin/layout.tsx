@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession,signOut } from "next-auth/react";
 
 // 导航配置
 const navigation = [
@@ -68,7 +68,7 @@ const navigation = [
     //   { name: '充值订单', href: '/admin/orders/recharge' },
     // ]
   },
-  { name: '财务管理', href: '/admin/finance', icon: CreditCard },
+  // { name: '财务管理', href: '/admin/finance', icon: CreditCard },
   // { name: '系统设置', href: '/admin/settings', icon: Settings },
 ];
 
@@ -159,7 +159,7 @@ export default function AdminLayout({
                   className={`w-full flex items-center justify-between px-4 py-2 text-sm font-medium rounded-md
                     text-gray-600 hover:bg-gray-50 hover:text-gray-900 
                     dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white
-                    ${isActive(item.href) ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white' : ''}`}
+                    ${isActive(item.href!) ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white' : ''}`}
                 >
                   <div className="flex items-center">
                     <Icon className="mr-3 h-5 w-5" />
@@ -255,16 +255,16 @@ export default function AdminLayout({
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>账号管理</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  {/* <DropdownMenuItem>
                     <Link href="/admin/settings/profile" className="flex items-center">
                       个人设置
                     </Link>
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
                   <DropdownMenuItem className="text-red-600">
-                    <Link href="/logout" className="flex items-center">
+                    <button className="flex items-center" onClick={() => signOut({ callbackUrl: "/" })}>
                       <LogOut className="mr-2 h-4 w-4" />
                       退出登录
-                    </Link>
+                    </button>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

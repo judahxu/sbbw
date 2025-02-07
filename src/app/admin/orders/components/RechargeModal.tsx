@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { RechargeOrder } from '@/types/orders';
+import { RechargeOrder } from '../types';
 
 interface RechargeModalProps {
   open: boolean;

@@ -25,9 +25,19 @@ export function UserNav() {
 
   if (!session) {
     return (
-      <LoginLink to='/login' src='/images/sbbw.svg' alt='SBBW Logo' width={100} height={24} title='登录/注册' /> 
+      <div className="flex items-center">
+        <LoginLink 
+          to='/login' 
+          src='/images/sbbw.svg' 
+          alt='SBBW Logo' 
+          width={100} 
+          height={24} 
+          title='登录' 
+        />
+      </div>
     );
   }
+  
 
   const userInitials = session.user?.name
     ? session.user.name.charAt(0).toUpperCase()
@@ -47,7 +57,7 @@ export function UserNav() {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
-              {session.user?.name || "用户"}
+              {session.user?.name ?? "用户"}
             </p>
             <p className="text-xs leading-none text-muted-foreground">
               {session.user?.email}

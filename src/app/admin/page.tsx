@@ -1,15 +1,62 @@
 // app/(admin)/dashboard/page.tsx
 'use client'
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Overview } from "../components/admin/overview"
-import { RecentSales } from "../components/admin/recent-sales"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { api } from "~/trpc/react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
+import { Loader2 } from "lucide-react";
+
+// 数据统计组件
+function StatsCard({ title, value, description }: {
+  title: string;
+  value: string | number;
+  description?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        {description && (
+          <p className="text-xs text-muted-foreground">{description}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// 图表类型
+type ChartType = 'revenue' | 'orders';
+type TimeRange = 'weekly' | 'monthly';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [chartType, setChartType] = useState<ChartType>('revenue');
+  const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
+
+  // 获取统计数据
+  const { data: stats, isLoading: isStatsLoading } = api.dashboard.getStats.useQuery();
+  
+  // 获取图表数据
+  const { data: chartData, isLoading: isChartLoading } = api.dashboard.getChartData.useQuery({
+    type: chartType,
+    range: timeRange
+  });
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -17,8 +64,12 @@ export default function DashboardPage() {
     }
   }, [status, router]);
 
-  if (status === "loading") {
-    return <div>Loading...</div>;
+  if (status === "loading" || isStatsLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -27,73 +78,77 @@ export default function DashboardPage() {
         <h2 className="text-2xl font-bold tracking-tight md:text-3xl">仪表盘</h2>
       </div>
       
-      {/* Responsive Grid for Stats Cards */}
+      {/* 统计卡片 */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总收入</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">¥45,231.89</div>
-            <p className="text-xs text-muted-foreground">
-              +20.1% compared to last month
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">订单数</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">+2350</div>
-            <p className="text-xs text-muted-foreground">
-              +180.1% compared to last month
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">活跃用户</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">+12,234</div>
-            <p className="text-xs text-muted-foreground">
-              +19% compared to last month
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">库存告警</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">2</div>
-            <p className="text-xs text-muted-foreground">
-              需要补充库存的产品数量
-            </p>
-          </CardContent>
-        </Card>
+        <StatsCard 
+          title="总收入" 
+          value={`¥${stats?.totalRevenue.toLocaleString()}`} 
+        />
+        <StatsCard 
+          title="总订单数" 
+          value={stats?.totalOrders.toLocaleString() ?? 0} 
+        />
+        <StatsCard 
+          title="总账号数" 
+          value={`${stats?.totalAccounts.toLocaleString() ?? 0}`}
+          description={`美区账号: ${stats?.appleIdAccounts ?? 0} | 加速器: ${stats?.acceleratorAccounts ?? 0}`}
+        />
+        <StatsCard 
+          title="剩余库存" 
+          value={`${stats?.availableAccounts.toLocaleString() ?? 0}`}
+          description={`美区账号: ${stats?.availableAppleIds ?? 0} | 加速器: ${stats?.availableAccelerators ?? 0}`}
+        />
       </div>
 
-      {/* Responsive Grid for Charts */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-1 md:col-span-4">
-          <CardHeader>
-            <CardTitle>概览</CardTitle>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <Overview />
-          </CardContent>
-        </Card>
-        <Card className="col-span-1 md:col-span-3">
-          <CardHeader>
-            <CardTitle>最近销售</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RecentSales />
-          </CardContent>
-        </Card>
-      </div>
+      {/* 图表区域 */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>数据趋势</CardTitle>
+          <div className="flex space-x-2">
+            <Select
+              value={chartType}
+              onValueChange={(value: ChartType) => setChartType(value)}
+            >
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="选择类型" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="revenue">收入统计</SelectItem>
+                <SelectItem value="orders">订单统计</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={timeRange}
+              onValueChange={(value: TimeRange) => setTimeRange(value)}
+            >
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="选择时间" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="weekly">按周</SelectItem>
+                <SelectItem value="monthly">按月</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar
+                  dataKey="value"
+                  fill="#8884d8"
+                  name={chartType === 'revenue' ? '收入' : '订单数'}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
     </div>
-  )
+  );
 }

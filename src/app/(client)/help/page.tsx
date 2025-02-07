@@ -41,7 +41,7 @@ const HelpDocs = () => {
                 <section>
                   <h3 className="text-lg font-semibold mb-2">快速开始</h3>
                   <ol className="list-decimal pl-6 space-y-2">
-                    <li>注册账号：点击右上角的"登录/注册"按钮</li>
+                    <li>注册账号：点击右上角的“登录/注册”按钮</li>
                     <li>选择产品：根据需求选择合适的账号类型</li>
                     <li>完成支付：支持支付宝、微信等多种支付方式</li>
                     <li>获取服务：支付完成后即可使用相关服务</li>

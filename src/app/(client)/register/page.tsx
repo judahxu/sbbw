@@ -7,6 +7,11 @@ import { api } from "~/trpc/react";
 import { useRouter } from 'next/navigation';
 import { useToast } from '~/hooks/use-toast';
 
+interface SendCodeResponse {
+  success: boolean;
+  error?: string;
+}
+
 export default function Register() {
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
@@ -80,7 +85,7 @@ export default function Register() {
         }),
       });
   
-      const data = await response.json();
+      const data = await response.json() as SendCodeResponse;
   
       if (data.success) {
         toast({
@@ -92,7 +97,7 @@ export default function Register() {
         toast({
           variant: "destructive",
           title: "发送失败",
-          description: data.error || "发送验证码失败",
+          description: data.error ?? "发送验证码失败",
         });
       }
     } catch (error) {

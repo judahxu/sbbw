@@ -10,14 +10,23 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-
   return (
-    <main className="flex min-h-screen flex-col items-center p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <HomeLink to='/' first="世界这么大" second="-> 去看看" />   
-        <UserNav />
+    <main className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center">
+          <div className="flex w-full justify-between items-center px-4">
+            <div className="flex-1">
+              <HomeLink to='/' first="世界这么大" second="-> 去看看" />
+            </div>
+            <div className="flex items-center">
+              <UserNav />
+            </div>
+          </div>
+        </div>
+      </header>
+      <div className="flex-1 container py-6 md:py-8  w-full">
+        {children}
       </div>
-      {children}
     </main>
   )
 }

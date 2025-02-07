@@ -4,20 +4,17 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AccountStatus } from '../page';
+import { AccountStatus, ImportedAccount,AccountImportProps } from '../types';
 import * as XLSX from 'xlsx';
 
-interface ImportedAccount {
+
+interface RawExcelRow {
   email: string;
   password: string;
-  status: AccountStatus;
+  status?: string;
   notes?: string;
 }
 
-interface AccountImportProps {
-  onImport: (accounts: ImportedAccount[]) => void;
-  onClose: () => void;
-}
 
 export function AccountImport({ onImport, onClose }: AccountImportProps) {
   const [importing, setImporting] = useState(false);
@@ -36,6 +33,16 @@ export function AccountImport({ onImport, onClose }: AccountImportProps) {
     XLSX.writeFile(template, 'account-import-template.xlsx');
   };
 
+
+  const validateStatus = (status: string): AccountStatus => {
+    const normalizedStatus = status.toLowerCase();
+    return normalizedStatus === 'available' || 
+           normalizedStatus === 'sold' || 
+           normalizedStatus === 'abnormal' 
+           ? normalizedStatus as AccountStatus 
+           : 'available' as AccountStatus ;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -46,31 +53,29 @@ export function AccountImport({ onImport, onClose }: AccountImportProps) {
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+      const firstSheetName = workbook.SheetNames?.[0] ?? '';
+      const worksheet = workbook.Sheets[firstSheetName];
+      if (!worksheet) {
+        throw new Error('无法读取工作表');
+      }
+      const rawData = XLSX.utils.sheet_to_json<RawExcelRow>(worksheet);
 
-      // 数据验证
-      const validatedData = jsonData.map((row, index) => {
+      const validatedData: ImportedAccount[] = rawData.map((row, index) => {
+        // Validate required fields
         if (!row.email || !row.password) {
           throw new Error(`第 ${index + 2} 行：邮箱和密码为必填项`);
         }
 
-        // 验证邮箱格式
+        // Validate email format
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
           throw new Error(`第 ${index + 2} 行：邮箱格式不正确`);
-        }
-
-        // 验证状态值
-        const status = (row.status || 'available').toLowerCase();
-        if (!Object.values(AccountStatus).includes(status as AccountStatus)) {
-          row.status = AccountStatus.AVAILABLE;
         }
 
         return {
           email: row.email,
           password: row.password,
-          status: (row.status || 'available').toLowerCase() as AccountStatus,
-          notes: row.notes || ''
+          status: validateStatus(row.status ?? 'available'),
+          notes: row.notes ?? ''
         };
       });
 

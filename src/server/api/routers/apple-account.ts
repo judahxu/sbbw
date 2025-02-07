@@ -6,7 +6,7 @@ import { and, eq, like, sql, desc } from "drizzle-orm";
 import { appleAccounts } from "~/server/db/schema";
 
 // 状态枚举
-const AccountStatus = z.enum(["available", "sold", "abnormal", "all"]);
+const AccountStatus = z.enum(["available", "sold", "abnormal"]);
 
 // 分页参数验证
 const paginationSchema = z.object({
@@ -48,8 +48,8 @@ export const appleAccountRouter = createTRPCRouter({
         .select({ count: sql<number>`count(*)` })
         .from(appleAccounts)
         .where(whereClause);
-      const totalCount = totalCountQuery[0].count;
-      // 获取分页数据
+        const totalCount = totalCountQuery.length > 0 ? totalCountQuery[0]?.count : 0;
+        // 获取分页数据
       const accounts = await ctx.db
         .select()
         .from(appleAccounts)

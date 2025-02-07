@@ -184,5 +184,7 @@ export const wechatPay = new WechatPay({
   appid: process.env.WECHAT_APP_ID!,
   mchId: process.env.WECHAT_MCH_ID!,
   apiKey: process.env.WECHAT_API_KEY!,
-  notifyUrl: process.env.WECHAT_NOTIFY_URL,
+  notifyUrl: process.env.VERCEL_URL 
+  ? `https://${process.env.VERCEL_URL}/api/pay/notify`
+  : 'http://localhost:3000/api/pay/notify'  // 或你的本地开发 URL
 });

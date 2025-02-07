@@ -21,7 +21,6 @@ export const env = createEnv({
     WECHAT_APP_ID:z.string(),
     WECHAT_MCH_ID:z.string(),
     WECHAT_API_KEY:z.string(),
-    WECHAT_NOTIFY_URL:z.string(),
 
     GMAIL_USER:z.string(),
     GMAIL_APP_PASSWORD:z.string(),
@@ -56,7 +55,6 @@ export const env = createEnv({
     WECHAT_APP_ID:process.env.WECHAT_APP_ID,
     WECHAT_MCH_ID:process.env.WECHAT_MCH_ID,
     WECHAT_API_KEY:process.env.WECHAT_API_KEY,
-    WECHAT_NOTIFY_URL:process.env.WECHAT_NOTIFY_URL,
 
     GMAIL_USER:process.env.GMAIL_USER,
     GMAIL_APP_PASSWORD:process.env.GMAIL_APP_PASSWORD,

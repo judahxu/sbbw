@@ -4,6 +4,7 @@ import redis from '~/server/db/redis';
 import { NextResponse } from 'next/server';
 import { sendVerificationEmail, generateVerificationCode } from '~/server/services/email';
 import { z } from 'zod';
+import type { RedisClient } from '~/server/db/redis/redis-interface';
 
 // Request body schemas
 const sendCodeSchema = z.object({

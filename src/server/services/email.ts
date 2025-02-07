@@ -118,7 +118,7 @@ export async function sendExpirationNoticeEmail(to: string, params: {
             <div style="text-align: center; margin-bottom: 24px;">
               <h2 style="color: #1F2937; margin: 0 0 12px 0; font-size: 20px;">服务到期提醒</h2>
               <p style="color: #6B7280; font-size: 16px; margin: 0;">
-                您好 ${params.username}，您的加速服务即将到期
+                您好，您的加速服务即将到期
               </p>
             </div>
 

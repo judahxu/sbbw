@@ -1,18 +1,9 @@
-import { Redis } from 'ioredis';
+// import type { RedisClient } from './redis-interface';
+import productionRedis from './redis/redis-production';
+import localRedis from './redis/redis-local';
 
-const redis = new Redis({
-  host: 'localhost',
-  port: 6379,
-  password: '123456', // 如果设置了密码
-});
-
-// 测试连接
-redis.on('error', (err) => {
-  console.error('Redis连接错误:', err);
-});
-
-redis.on('connect', () => {
-  console.log('Redis连接成功!');
-});
+const redis = process.env.NODE_ENV === 'production' 
+  ? productionRedis
+  : localRedis;
 
 export default redis;

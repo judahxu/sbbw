@@ -25,6 +25,8 @@ export const env = createEnv({
     GMAIL_USER:z.string(),
     GMAIL_APP_PASSWORD:z.string(),
 
+    REDIS_URL:z.string(),
+    REDIS_TOKEN:z.string(),
     
     // WECHAT_CERT_PATH:z.string(),
     // WECHAT_KEY_PATH:z.string(),
@@ -58,6 +60,10 @@ export const env = createEnv({
 
     GMAIL_USER:process.env.GMAIL_USER,
     GMAIL_APP_PASSWORD:process.env.GMAIL_APP_PASSWORD,
+
+    REDIS_URL:process.env.REDIS_URL,
+    REDIS_TOKEN:process.env.REDIS_TOKEN,
+
     // WECHAT_CERT_PATH:process.env.WECHAT_CERT_PATH,
     // WECHAT_KEY_PATH:process.env.WECHAT_KEY_PATH,
   },

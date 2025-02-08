@@ -26,12 +26,12 @@ export class WechatPay {
     appid: string;
     mchId: string;
     apiKey: string;
-    notifyUrl?: string;
+    notifyUrl: string;
   }) {
     this.appid = config.appid;
     this.mchId = config.mchId;
     this.apiKey = config.apiKey;
-    this.notifyUrl = config.notifyUrl ?? 'https://coijing.com/api/pay/notify';
+    this.notifyUrl = config.notifyUrl;
   }
 
   // 生成随机字符串
@@ -184,7 +184,7 @@ export const wechatPay = new WechatPay({
   appid: process.env.WECHAT_APP_ID!,
   mchId: process.env.WECHAT_MCH_ID!,
   apiKey: process.env.WECHAT_API_KEY!,
-  notifyUrl: process.env.VERCEL_URL 
-  ? `https://${process.env.VERCEL_URL}/api/pay/notify`
+  notifyUrl: process.env.WECHAT_NOTIFY_URL 
+  ? `https://${process.env.WECHAT_NOTIFY_URL}/api/pay/notify`
   : 'http://localhost:3000/api/pay/notify'  // 或你的本地开发 URL
 });

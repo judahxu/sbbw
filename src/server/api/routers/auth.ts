@@ -33,7 +33,7 @@ export const authRouter = createTRPCRouter({
         });
       }
 
-      if (storedCode !== code) {
+      if (storedCode != code) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "验证码错误",
@@ -90,7 +90,7 @@ export const authRouter = createTRPCRouter({
         });
       }
 
-      if (storedCode !== code) {
+      if (storedCode != code) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "验证码错误",

@@ -16,7 +16,7 @@ export async function initializeServer() {
     } else {
       // 获取当前锁的持有者
       const currentHolder = await redis.get(WORKER_LOCK_KEY);
-      console.log(`Worker already running in process ${currentHolder}`);
+      console.log(`Worker already running in process ${currentHolder ?? "unknown"}`);
       return;
     }
 

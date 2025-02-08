@@ -4,7 +4,6 @@ import redis from '~/server/db/redis';
 import { NextResponse } from 'next/server';
 import { sendVerificationEmail, generateVerificationCode } from '~/server/services/email';
 import { z } from 'zod';
-import type { RedisClient } from '~/server/db/redis/redis-interface';
 
 // Request body schemas
 const sendCodeSchema = z.object({
@@ -53,7 +52,9 @@ export async function POST(req: Request) {
     
     // 存储验证码,5分钟过期
     const key = `verify:${type}:${email}`;
-    await redis.set(key, code, 'EX', 300); // 设置键值对，并设置过期时间为 300 秒（5 分钟）
+    // await redis.set(key, code, 'EX', 300); // 设置键值对，并设置过期时间为 300 秒（5 分钟）
+    await redis.set(key, code, { ex: 300 }); // Upstash Redis的正确写法
+
     console.log(`Verification code for ${key}: ${code}`);
     
     // 发送验证码邮件
@@ -83,7 +84,7 @@ export async function PUT(req: Request) {
     
     const key = `verify:${type}:${email}`;
     const storedCode = await redis.get(key);
-    console.log(`Stored code for ${key}: ${storedCode}`);
+    console.log(`Stored code for ${key}: ${storedCode} ?? 'unknown'`);
 
     if (!storedCode || storedCode !== code) {
       return NextResponse.json(

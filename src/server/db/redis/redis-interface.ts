@@ -1,5 +1,5 @@
 export interface RedisClient {
-  set(key: string, value: string, expiryMode?: string, time?: number): Promise<'OK'>;
+  set(key: string, value: string, opts?: { ex?: number }): Promise<'OK'>;
   get(key: string): Promise<string | null>;
   del(key: string): Promise<number>;
     // 分布式锁相关操作

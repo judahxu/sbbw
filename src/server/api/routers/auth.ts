@@ -24,6 +24,8 @@ export const authRouter = createTRPCRouter({
       const key = `verify:register:${email}`;
       const storedCode = await redis.get(key);
 
+      console.log("验证码:", storedCode,code);
+
       if (!storedCode) {
         throw new TRPCError({
           code: "BAD_REQUEST",

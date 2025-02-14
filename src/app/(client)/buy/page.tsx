@@ -55,7 +55,7 @@ interface PaymentApiResponse {
 
   // Auto-redirect if order is already paid
   useEffect(() => {
-    if (order?.status === 'paid') {
+    if (order?.status != 'pending_payment' || paymentStatusData?.status === 'paid') {
       setPaymentStatus('paid');
       router.push('/record');
     }

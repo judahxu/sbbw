@@ -6,13 +6,11 @@ import { StatsOverview } from './components/StatsOverview';
 import { OrderTable } from './components/OrderTable';
 import { OrderToolbar } from './components/OrderToolbar';
 import { RechargeModal } from './components/RechargeModal';
-import { AppleIdModal } from './components/AppleIdModal';
-import { AccelerationModal } from './components/AccelerationModal';
 import { OrderDetailModal } from './components/OrderDetailModal';
 import { Order, OrderType, OrderStatus } from './types';
 import { useOrders } from './hooks/useOrders';
 import { AlertDialog, AlertDialogContent, AlertDialogAction, AlertDialogCancel, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
-
+import { toast } from "sonner";
 export default function OrdersPage() {
   const {
     orders,
@@ -38,8 +36,6 @@ export default function OrdersPage() {
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
-  const [showAppleIdModal, setShowAppleIdModal] = useState(false);
-  const [showAccelerationModal, setShowAccelerationModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -65,14 +61,11 @@ export default function OrdersPage() {
       if (selectedOrder.type === 'appleId') {
         processAppleId({
           orderId: selectedOrder.id,
-          email: '', // Will be auto-assigned
-          password: '', // Will be auto-assigned
           remark: '系统自动分配'
         });
       } else if (selectedOrder.type === 'acceleration') {
         processAcceleration({
           orderId: selectedOrder.id,
-          configuration: '', // Will be auto-assigned
           remark: '系统自动分配'
         });
       }
@@ -113,45 +106,6 @@ export default function OrdersPage() {
     }
   };
 
-  // 处理美区账号订单
-  const handleAppleIdConfirm = async (data: { 
-    email: string; 
-    password: string; 
-    remark?: string 
-  }) => {
-    if (!selectedOrder) return;
-
-    try {
-      processAppleId({
-        orderId: selectedOrder.id,
-        ...data
-      });
-      setShowAppleIdModal(false);
-      setSelectedOrder(null);
-    } catch (error) {
-      console.error('Failed to process Apple ID order:', error);
-    }
-  };
-
-  // 处理加速服务订单
-  const handleAccelerationConfirm = async (data: {
-    server: string;
-    remark?: string;
-  }) => {
-    if (!selectedOrder) return;
-
-    try {
-      processAcceleration({
-        orderId: selectedOrder.id,
-        configuration: data.server,
-        remark: data.remark
-      });
-      setShowAccelerationModal(false);
-      setSelectedOrder(null);
-    } catch (error) {
-      console.error('Failed to process acceleration order:', error);
-    }
-  };
 
   return (
     <div className="p-8 space-y-6">

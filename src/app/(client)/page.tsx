@@ -22,18 +22,18 @@ export default function Home() {
         <div className="grid lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
           <ServiceLink
             to="/product"
-            title="美区账号"
-            description="提供 美区账号，独立账号，永久使用。"
-          />
-          <ServiceLink
-            to="/product"
-            title="科学上网"
+            title="加速服务"
             description="提供可靠、不间断的 加速服务，让您高速、稳定地访问 国外网站。"
           />
           <ServiceLink
             to="/product"
-            title="账户充值"
-            description="提供 账户充值服务，支持支付宝、微信、银行卡等多种支付方式。"
+            title="美区账号"
+            description="提供 App Store 美区账号，独立账号，永久使用。"
+          />
+          <ServiceLink
+            to="/product"
+            title="礼品卡充值"
+            description="提供 App Store 美区账户 礼品卡充值服务，支持支付宝、微信、银行卡等多种支付方式。"
           />
           <ServiceLink
             to="/docs/guide"

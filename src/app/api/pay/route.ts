@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const result = await wechatPay.unifiedOrder({
       outTradeNo: orderId,
       body: description,
-      totalFee: 1, // 转换为分
+      totalFee: amount * 100, // 转换为分
       spbillCreateIp: '127.0.0.1',
     });
 

@@ -251,7 +251,7 @@ export default function ProductPage() {
       ]
     },
     {
-      title: '充值服务',
+      title: '礼品卡充值',
       description: '提供 App Store 礼品卡充值服务，支持各种支付方式',
       features: [
         '支持支付宝、微信等支付方式',
@@ -335,13 +335,13 @@ export default function ProductPage() {
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow container mx-auto px-4 py-8">
         {/* 新手引导区域 */}
-        <BeginnerGuide />
+        {/* <BeginnerGuide /> */}
 
         {/* 常见使用场景流程 */}
-        <section className="mb-16">
+        {/* <section className="mb-16">
           <h2 className="text-2xl font-bold mb-6 text-center">选择你的场景</h2>
           <ServiceFlow />
-        </section>
+        </section> */}
 
         {/* 服务详情区域 */}
         <section className="mb-16">

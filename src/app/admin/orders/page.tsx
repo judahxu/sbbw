@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import { ResourcePoolStatus } from './components/ResourcePoolStatus';
 import { StatsOverview } from './components/StatsOverview';
 import { OrderTable } from './components/OrderTable';
 import { OrderToolbar } from './components/OrderToolbar';
@@ -12,6 +11,7 @@ import { AccelerationModal } from './components/AccelerationModal';
 import { OrderDetailModal } from './components/OrderDetailModal';
 import { Order, OrderType, OrderStatus } from './types';
 import { useOrders } from './hooks/useOrders';
+import { AlertDialog, AlertDialogContent, AlertDialogAction, AlertDialogCancel, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
 
 export default function OrdersPage() {
   const {
@@ -41,6 +41,7 @@ export default function OrdersPage() {
   const [showAppleIdModal, setShowAppleIdModal] = useState(false);
   const [showAccelerationModal, setShowAccelerationModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // 处理订单操作
   const handleProcess = (order: Order) => {
@@ -50,11 +51,36 @@ export default function OrdersPage() {
         setShowRechargeModal(true);
         break;
       case 'appleId':
-        setShowAppleIdModal(true);
-        break;
       case 'acceleration':
-        setShowAccelerationModal(true);
+        setShowConfirmDialog(true);
         break;
+    }
+  };
+
+   // 自动处理订单
+   const handleAutoProcess = async () => {
+    if (!selectedOrder) return;
+
+    try {
+      if (selectedOrder.type === 'appleId') {
+        processAppleId({
+          orderId: selectedOrder.id,
+          email: '', // Will be auto-assigned
+          password: '', // Will be auto-assigned
+          remark: '系统自动分配'
+        });
+      } else if (selectedOrder.type === 'acceleration') {
+        processAcceleration({
+          orderId: selectedOrder.id,
+          configuration: '', // Will be auto-assigned
+          remark: '系统自动分配'
+        });
+      }
+      setShowConfirmDialog(false);
+      setSelectedOrder(null);
+    } catch (error) {
+      console.error('Failed to process order:', error);
+      toast.error('处理订单失败');
     }
   };
 
@@ -175,40 +201,30 @@ export default function OrdersPage() {
         />
       )}
 
-      {selectedOrder?.type === 'appleId' && (
-        <AppleIdModal
-          open={showAppleIdModal}
-          order={selectedOrder}
-          onClose={() => {
-            setShowAppleIdModal(false);
-            setSelectedOrder(null);
-          }}
-          onConfirm={handleAppleIdConfirm}
-          onManualProcess={() => {
-            console.log('Manual process for Apple ID:', selectedOrder.id);
-            setShowAppleIdModal(false);
-            setSelectedOrder(null);
-          }}
-        />
-      )}
-
-      {selectedOrder?.type === 'acceleration' && (
-        <AccelerationModal
-          open={showAccelerationModal}
-          order={selectedOrder}
-          onClose={() => {
-            setShowAccelerationModal(false);
-            setSelectedOrder(null);
-          }}
-          onConfirm={handleAccelerationConfirm}
-          onManualProcess={() => {
-            console.log('Manual process for acceleration:', selectedOrder.id);
-            setShowAccelerationModal(false);
-            setSelectedOrder(null);
-          }}
-        />
-      )}
-
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogTitle>
+            确认{selectedOrder?.type === 'appleId' ? '分配账号' : '开通服务'}？
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {selectedOrder?.type === 'appleId' 
+              ? '系统将从账号池中自动分配一个可用的美区账号。请确认账号池资源充足。'
+              : '系统将自动分配加速服务配置。请确认服务器资源充足。'
+            }
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowConfirmDialog(false);
+              setSelectedOrder(null);
+            }}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleAutoProcess}>
+              确认处理
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {selectedOrderDetails?.id && (
         <OrderDetailModal
           open={showDetailModal}

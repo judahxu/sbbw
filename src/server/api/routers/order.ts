@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, in } from "drizzle-orm";
 import { orders, rechargeOrders, appleIdOrders, accelerationOrders,  appleAccounts, configs,serverAccounts,paymentRecords } from "~/server/db/schema";
 import { getProductName, getProductDescription, getOrderDetails } from "~/lib/utils";
 
@@ -419,7 +419,7 @@ export const orderRouter = createTRPCRouter({
 
         // 待处理订单数
         ctx.db.query.orders.findMany({
-          where: eq(orders.status, 'paid'),
+          where: eq(orders.status, 'processing'),
           columns: {
             id: true,
           },
@@ -431,7 +431,7 @@ export const orderRouter = createTRPCRouter({
         })
         .from(orders)
         .where(and(
-          eq(orders.status, 'completed'),
+          sql`status IN ('completed', 'processing')`,  // 修改后的代码
           sql`MONTH(created_at) = MONTH(CURRENT_DATE())`,
           sql`YEAR(created_at) = YEAR(CURRENT_DATE())`
         ))
@@ -489,115 +489,155 @@ export const orderRouter = createTRPCRouter({
         });
       }),
 
-    // 处理美区账号订单
-    processAppleIdOrder: protectedProcedure
-      .input(ProcessAppleIdSchema)
-      .mutation(async ({ ctx, input }) => {
-        const { orderId, email, password, remark } = input;
+    // Process Apple ID order (auto-assign)
+  processAppleIdOrder: protectedProcedure
+  .input(z.object({
+    orderId: z.string(),
+    remark: z.string().optional(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const { orderId, remark } = input;
 
-        return await ctx.db.transaction(async (tx) => {
-          const order = await tx.query.orders.findFirst({
-            where: and(
-              eq(orders.id, orderId),
-              eq(orders.type, 'appleId'),
-            ),
-          });
-
-          if (!order) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: '订单状态不正确',
-            });
-          }
-
-          await tx.update(orders)
-            .set({
-              status: 'completed',
-              processedBy: ctx.session.user.id,
-              processedAt: new Date(),
-              remark,
-            })
-            .where(eq(orders.id, orderId));
-
-          await tx.update(appleIdOrders)
-            .set({
-              email,
-              password,
-            })
-            .where(eq(appleIdOrders.orderId, orderId));
-
-          return { success: true };
-        });
-      }),
-
-    // 处理加速服务订单
-    processAccelerationOrder: protectedProcedure
-    .input(ProcessAccelerationSchema)
-    .mutation(async ({ ctx, input }) => {
-      const { orderId, configuration, remark } = input;
-  
-      return await ctx.db.transaction(async (tx) => {
-        // Get order with acceleration details
-        const order = await tx.query.orders.findFirst({
-          where: and(
-            eq(orders.id, orderId),
-            eq(orders.type, 'acceleration'),
-          ),
-          with: {
-            accelerationOrder: true,
-          },
-        });
-  
-        if (!order?.accelerationOrder) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: '订单状态或类型不正确',
-          });
-        }
-  
-        // Calculate duration based on plan
-        const duration = order.accelerationOrder.plan === 'monthly' ? 30 :
-                        order.accelerationOrder.plan === 'quarterly' ? 90 : 365;
-  
-        const startDate = new Date();
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + duration);
-  
-        // Update order status
-        await tx.update(orders)
-          .set({
-            status: 'completed',
-            processedBy: ctx.session.user.id,
-            processedAt: startDate,
-            remark,
-          })
-          .where(eq(orders.id, orderId));
-  
-        // Update acceleration order details
-        await tx.update(accelerationOrders)
-          .set({
-            configuration,
-            startDate,
-            endDate,
-          })
-          .where(eq(accelerationOrders.orderId, orderId));
-  
-        // Update server account if configuration matches
-        if (configuration) {
-          await tx.update(serverAccounts)
-            .set({
-              status: 'assigned',
-              assignedTo: order.userId,
-              assignmentStart: startDate,
-              duration,
-              assignmentEnd: endDate,
-            })
-            .where(eq(serverAccounts.config, configuration));
-        }
-  
-        return { success: true };
+    return await ctx.db.transaction(async (tx) => {
+      const order = await tx.query.orders.findFirst({
+        where: and(
+          eq(orders.id, orderId),
+          eq(orders.type, 'appleId'),
+          eq(orders.status, 'processing'),
+        ),
       });
-    }),
+
+      if (!order) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '订单状态不正确',
+        });
+      }
+
+      // Try to find available account
+      const availableAccount = await tx.query.appleAccounts.findFirst({
+        where: eq(appleAccounts.status, 'available'),
+      });
+
+      if (!availableAccount) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '无可用账号',
+        });
+      }
+
+      // Update account status
+      await tx.update(appleAccounts)
+        .set({
+          status: 'sold',
+          orderId: order.id,
+          soldAt: new Date(),
+        })
+        .where(eq(appleAccounts.id, availableAccount.id));
+
+      // Update order with account info
+      await tx.update(appleIdOrders)
+        .set({
+          email: availableAccount.email,
+          password: availableAccount.password,
+        })
+        .where(eq(appleIdOrders.orderId, orderId));
+
+      // Complete order
+      await tx.update(orders)
+        .set({
+          status: 'completed',
+          processedBy: ctx.session.user.id,
+          processedAt: new Date(),
+          remark: remark ?? '系统自动分配',
+        })
+        .where(eq(orders.id, orderId));
+
+      return { success: true };
+    });
+  }),
+
+// Process acceleration order (auto-assign)
+processAccelerationOrder: protectedProcedure
+  .input(z.object({
+    orderId: z.string(),
+    remark: z.string().optional(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const { orderId, remark } = input;
+
+    return await ctx.db.transaction(async (tx) => {
+      const order = await tx.query.orders.findFirst({
+        where: and(
+          eq(orders.id, orderId),
+          eq(orders.type, 'acceleration'),
+          eq(orders.status, 'processing'),
+        ),
+        with: {
+          accelerationOrder: true,
+        },
+      });
+
+      if (!order?.accelerationOrder) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '订单状态不正确',
+        });
+      }
+
+      // Try to find available server
+      const availableServer = await tx.query.serverAccounts.findFirst({
+        where: eq(serverAccounts.status, 'available'),
+      });
+
+      if (!availableServer) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '无可用服务器',
+        });
+      }
+
+      // Calculate duration
+      const duration = order.accelerationOrder.plan === 'monthly' ? 30 :
+                      order.accelerationOrder.plan === 'quarterly' ? 90 : 365;
+
+      const startDate = new Date();
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + duration);
+
+      // Update server assignment
+      await tx.update(serverAccounts)
+        .set({
+          status: 'assigned',
+          assignedTo: order.userId,
+          assignmentStart: startDate,
+          duration,
+          assignmentEnd: endDate,
+        })
+        .where(eq(serverAccounts.id, availableServer.id));
+
+      // Update acceleration order
+      await tx.update(accelerationOrders)
+        .set({
+          configuration: availableServer.config,
+          startDate,
+          endDate,
+        })
+        .where(eq(accelerationOrders.orderId, orderId));
+
+      // Complete order
+      await tx.update(orders)
+        .set({
+          status: 'completed',
+          processedBy: ctx.session.user.id,
+          processedAt: startDate,
+          remark: remark ?? '系统自动分配',
+        })
+        .where(eq(orders.id, orderId));
+
+      return { success: true };
+    });
+  }),
 
   // 取消订单
   // cancelOrder: protectedProcedure

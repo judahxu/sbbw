@@ -55,11 +55,13 @@ interface PaymentApiResponse {
 
   // Auto-redirect if order is already paid
   useEffect(() => {
-    if (order?.status != 'pending_payment' || paymentStatusData?.status === 'paid') {
+
+    // console.log('paymentStatusData', (order && order.status !== 'pending_payment'),paymentStatusData?.status === 'paid');
+    if ((order && order.status !== 'pending_payment') || paymentStatusData?.status === 'paid') {
       setPaymentStatus('paid');
       router.push('/record');
     }
-  }, [order?.status, router, paymentStatusData?.status]);
+  }, [router, order?.status,paymentStatusData?.status]);
 
   // Create payment mutation
   const { mutate: createPayment } = api.payment.createPayment.useMutation({
